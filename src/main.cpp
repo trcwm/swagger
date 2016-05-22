@@ -24,6 +24,8 @@
 #include <sqstdstring.h>
 #include <sqstdaux.h>
 
+// note: https://docs.openttd.org/squirrel_8cpp_source.html
+
 #ifdef SQUNICODE
 #define scfprintf fwprintf
 #define scvprintf vfwprintf
@@ -79,6 +81,11 @@ void register_global_func(HSQUIRRELVM v, SQFUNCTION f, const char *fname, SQUser
     sq_pop(v,1); //pops the root table
 }
 
+void compile_error_handler(HSQUIRRELVM v, const SQChar* desc, const SQChar* source, SQInteger line, SQInteger column)
+{
+    printf("Error in %s:%d:%d %s\n", source, line, column, desc);
+}
+
 SQInteger enumerateSerialPorts(HSQUIRRELVM v)
 {
     foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
@@ -91,6 +98,17 @@ SQInteger enumerateSerialPorts(HSQUIRRELVM v)
     return 0;   // no arguments are returned.
 }
 
+bool doScript(HSQUIRRELVM v, const char *fileName)
+{
+    //sq_pushroottable(v);
+
+    if (SQ_SUCCEEDED(sqstd_dofile(v, fileName, SQFalse, SQTrue)))
+    {
+        return true;
+    }
+    return false;
+}
+
 void Interactive(HSQUIRRELVM v)
 {
     #define MAXINPUT 1024
@@ -101,7 +119,6 @@ void Interactive(HSQUIRRELVM v)
     SQInteger done=0;
 
     register_global_func(v, quit, _SC("quit"), (SQUserPointer *)&done);
-    register_global_func(v, enumerateSerialPorts, _SC("showSerial"));
 
     while (!done)
     {
@@ -176,16 +193,27 @@ int main(int argc, char *argv[])
     printf("Swagger version " VERSION " "__DATE__"\n");
     printf("Using %s (%d bits)\n",SQUIRREL_VERSION,((int)(sizeof(SQInteger)*8)));
     printf("\nuse quit() to exit.\n");
-    v=sq_open(1024);
-    sq_setprintfunc(v,printfunc,errorfunc);
 
+    v=sq_open(1024);
     sq_pushroottable(v);
+
+    sq_setprintfunc(v, printfunc, errorfunc);
 
     sqstd_register_bloblib(v);
     sqstd_register_iolib(v);
     sqstd_register_systemlib(v);
     sqstd_register_mathlib(v);
     sqstd_register_stringlib(v);
+
+    // register our own functions
+    register_global_func(v, enumerateSerialPorts, _SC("showSerial"));
+
+    // load all the targets
+    sq_setcompilererrorhandler(v, compile_error_handler);
+    if (!doScript(v, "targets\\targets.nut"))
+    {
+        printf("Cannot execute targets.nut script!\n");
+    }
 
     Interactive(v);
 
