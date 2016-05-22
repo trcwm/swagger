@@ -11,6 +11,11 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include "cobs.h"
+
+#include <QtSerialPort>
+#include <QtSerialPort/QSerialPortInfo>
+
 #include <squirrel.h>
 #include <sqstdblob.h>
 #include <sqstdsystem.h>
@@ -54,6 +59,38 @@ SQInteger quit(HSQUIRRELVM v)
     return 0;
 }
 
+void register_global_func(HSQUIRRELVM v, SQFUNCTION f, const char *fname)
+{
+    sq_pushroottable(v);
+    sq_pushstring(v,fname,-1);
+    sq_newclosure(v,f,0);
+    sq_newslot(v,-3,SQFalse);
+    sq_pop(v,1); //pops the root table
+}
+
+void register_global_func(HSQUIRRELVM v, SQFUNCTION f, const char *fname, SQUserPointer *userPtr)
+{
+    sq_pushroottable(v);
+    sq_pushstring(v,fname,-1);
+    sq_pushuserpointer(v, userPtr);
+    sq_newclosure(v,f,1);
+    sq_setparamscheck(v,1,NULL);
+    sq_newslot(v,-3,SQFalse);
+    sq_pop(v,1); //pops the root table
+}
+
+SQInteger enumerateSerialPorts(HSQUIRRELVM v)
+{
+    foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
+    {
+        std::string name = info.portName().toStdString();
+        std::string description = info.description().toStdString();
+        printf("Port name: %s\n", name.c_str());
+        printf("Port name: %s\n", description.c_str());
+    }
+    return 0;   // no arguments are returned.
+}
+
 void Interactive(HSQUIRRELVM v)
 {
     #define MAXINPUT 1024
@@ -63,13 +100,8 @@ void Interactive(HSQUIRRELVM v)
     SQInteger retval=0;
     SQInteger done=0;
 
-    sq_pushroottable(v);
-    sq_pushstring(v,_SC("quit"),-1);
-    sq_pushuserpointer(v,&done);
-    sq_newclosure(v,quit,1);
-    sq_setparamscheck(v,1,NULL);
-    sq_newslot(v,-3,SQFalse);
-    sq_pop(v,1);
+    register_global_func(v, quit, _SC("quit"), (SQUserPointer *)&done);
+    register_global_func(v, enumerateSerialPorts, _SC("showSerial"));
 
     while (!done)
     {
@@ -138,6 +170,8 @@ int main(int argc, char *argv[])
 {
     HSQUIRRELVM v;
     SQInteger retval = 0;
+
+    COBS::test();
 
     printf("Swagger version " VERSION " "__DATE__"\n");
     printf("Using %s (%d bits)\n",SQUIRREL_VERSION,((int)(sizeof(SQInteger)*8)));

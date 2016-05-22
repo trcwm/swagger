@@ -9,6 +9,10 @@
 cmake_minimum_required (VERSION 3.2)
 project (swagger)
 
+set(CMAKE_AUTOMOC ON)
+
+find_package(Qt5Core REQUIRED)
+
 # custom compilation of squirrel library
 # because the standard CMAKE script
 # don't work properly..
@@ -51,5 +55,9 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 # SWAGGER STUFF
 # #################################################################
 
-add_executable (swagger ${SQUIRREL_SRC} ${SQSTDLIB_SRC} src/main.cpp)
+set(SWAGGER_SRC src/main.cpp
+                src/cobs.cpp)
 
+add_executable (swagger ${SQUIRREL_SRC} ${SQSTDLIB_SRC} ${SWAGGER_SRC})
+
+qt5_use_modules(swagger SerialPort)
