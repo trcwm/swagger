@@ -56,7 +56,8 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 # #################################################################
 
 set(SWAGGER_SRC src/main.cpp
-                src/cobs.cpp)
+                src/cobs.cpp
+                src/hardwareinterface.cpp)
 
 add_executable (swagger ${SQUIRREL_SRC} ${SQSTDLIB_SRC} ${SWAGGER_SRC})
 

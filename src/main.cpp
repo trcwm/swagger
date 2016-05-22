@@ -11,10 +11,10 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "cobs.h"
+#include <QCoreApplication>
 
-#include <QtSerialPort>
-#include <QtSerialPort/QSerialPortInfo>
+#include "cobs.h"
+#include "hardwareinterface.h"
 
 #include <squirrel.h>
 #include <sqstdblob.h>
@@ -24,7 +24,8 @@
 #include <sqstdstring.h>
 #include <sqstdaux.h>
 
-// note: https://docs.openttd.org/squirrel_8cpp_source.html
+// note: http://wiki.squirrel-lang.org/default.aspx/SquirrelWiki/Embedding%20Getting%20Started.html
+// http://wiki.squirrel-lang.org/default.aspx/SquirrelWiki/SquirrelCallToCpp.html
 
 #ifdef SQUNICODE
 #define scfprintf fwprintf
@@ -35,6 +36,10 @@
 #endif
 
 #define VERSION "0.1"
+
+// dirt hack ..
+HardwareInterface* g_interface = NULL;
+
 
 void printfunc(HSQUIRRELVM SQ_UNUSED_ARG(v),const SQChar *s,...)
 {
@@ -51,14 +56,6 @@ void errorfunc(HSQUIRRELVM SQ_UNUSED_ARG(v),const SQChar *s,...)
     va_start(vl, s);
     scvprintf(stderr, s, vl);
     va_end(vl);
-}
-
-SQInteger quit(HSQUIRRELVM v)
-{
-    int *done;
-    sq_getuserpointer(v,-1,(SQUserPointer*)&done);
-    *done=1;
-    return 0;
 }
 
 void register_global_func(HSQUIRRELVM v, SQFUNCTION f, const char *fname)
@@ -86,16 +83,42 @@ void compile_error_handler(HSQUIRRELVM v, const SQChar* desc, const SQChar* sour
     printf("Error in %s:%d:%d %s\n", source, line, column, desc);
 }
 
+// *****************************************
+// ** CUSTOM SQUIRREL FUNCTIONS
+// *****************************************
+
+SQInteger quit(HSQUIRRELVM v)
+{
+    int *done;
+    sq_getuserpointer(v,-1,(SQUserPointer*)&done);
+    *done=1;
+    return 0;
+}
+
 SQInteger enumerateSerialPorts(HSQUIRRELVM v)
 {
-    foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
-    {
-        std::string name = info.portName().toStdString();
-        std::string description = info.description().toStdString();
-        printf("Port name: %s\n", name.c_str());
-        printf("Port name: %s\n", description.c_str());
-    }
+    HardwareInterface::printInterfaces();
+
     return 0;   // no arguments are returned.
+}
+
+SQInteger targetReset(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (nargs != 2)
+        return 0;   // no arguments returned;
+
+    SQInteger vReset;
+    if (SQ_SUCCEEDED(sq_getinteger(v, -1, &vReset)))
+    {
+        if (g_interface != 0)
+        {
+            //TODO: error checking..
+            g_interface->setTargetReset(vReset > 0);
+        }
+    }
+    return 0;
 }
 
 bool doScript(HSQUIRRELVM v, const char *fileName)
@@ -183,8 +206,11 @@ void Interactive(HSQUIRRELVM v)
     }
 }
 
+
 int main(int argc, char *argv[])
 {
+    QCoreApplication coreApplication(argc, argv);
+
     HSQUIRRELVM v;
     SQInteger retval = 0;
 
@@ -192,12 +218,22 @@ int main(int argc, char *argv[])
 
     printf("Swagger version " VERSION " "__DATE__"\n");
     printf("Using %s (%d bits)\n",SQUIRREL_VERSION,((int)(sizeof(SQInteger)*8)));
-    printf("\nuse quit() to exit.\n");
+    printf("\nuse:\n");
+    printf("  quit() to exit.\n");
+    printf("  showSerial() to enumerate serial interfaces.\n");
+    printf("  targetReset(int value) to change reset.\n");
+    printf("\n");
 
     v=sq_open(1024);
     sq_pushroottable(v);
 
     sq_setprintfunc(v, printfunc, errorfunc);
+
+    g_interface = HardwareInterface::open("COM3", 9600);
+    if (g_interface == 0)
+    {
+        printf("Error opening hardware interface!\n");
+    }
 
     sqstd_register_bloblib(v);
     sqstd_register_iolib(v);
@@ -207,6 +243,7 @@ int main(int argc, char *argv[])
 
     // register our own functions
     register_global_func(v, enumerateSerialPorts, _SC("showSerial"));
+    register_global_func(v, targetReset, _SC("targetReset"));
 
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);
@@ -218,6 +255,9 @@ int main(int argc, char *argv[])
     Interactive(v);
 
     sq_close(v);
+
+    if (g_interface != 0)
+        g_interface->close();
 
     return 0;
 }
