@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sstream>
 #include <stdarg.h>
 
 #include <QCoreApplication>
@@ -37,7 +38,7 @@
 
 #define VERSION "0.1"
 
-// dirt hack ..
+// dirty hack ..
 HardwareInterface* g_interface = NULL;
 
 
@@ -102,6 +103,12 @@ SQInteger enumerateSerialPorts(HSQUIRRELVM v)
     return 0;   // no arguments are returned.
 }
 
+
+/** Squirrel command: targetReset(int v)
+
+    Sets the state of the target's reset pin.
+
+   */
 SQInteger targetReset(HSQUIRRELVM v)
 {
     SQInteger nargs = sq_gettop(v);  // get number of arguments
@@ -113,10 +120,104 @@ SQInteger targetReset(HSQUIRRELVM v)
     if (SQ_SUCCEEDED(sq_getinteger(v, -1, &vReset)))
     {
         if (g_interface != 0)
-        {
+        {            
             //TODO: error checking..
             g_interface->setTargetReset(vReset > 0);
         }
+        else
+        {
+            printf("Error: no connection with interface\n");
+        }
+    }
+    return 0;
+}
+
+
+/** Squirrel command: <string> getInterfaceName()
+
+    Sets the state of the target's reset pin.
+
+   */
+SQInteger getInterfaceName(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (g_interface != 0)
+    {
+        std::string name;
+        if (g_interface->queryInterfaceName(name))
+        {
+            sq_pushstring(v, name.c_str(),-1);
+            return 1; // return one argument
+        }
+        else
+        {
+            //TODO: error reporting?
+        }
+    }
+    else
+    {
+        printf("Error: no connection with interface\n");
+    }
+    return 0; // no return variables
+}
+
+/** Squirrel command: openInterface(string interfacename) */
+
+SQInteger openInterface(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (nargs != 2)
+        return 0;   // no arguments returned;
+
+    // try to open an interface by integer (windows only)
+    // FIXME: check for win32
+    SQInteger vComport;
+    const char *deviceStrPtr;
+    if (SQ_SUCCEEDED(sq_getinteger(v, -1, &vComport)))
+    {
+        std::stringstream deviceName;
+        deviceName << "\\\\.\\COM" << vComport;
+
+        if (g_interface != 0)
+            delete g_interface;
+
+        g_interface = HardwareInterface::open(deviceName.str().c_str(), 19200);
+
+        if (g_interface == 0)
+            printf("Error: could not open interface %s\n", deviceName.str().c_str());
+        else
+            printf("Interface opened\n");
+    }
+    else if (SQ_SUCCEEDED(sq_getstring(v, -1, &deviceStrPtr)))
+    {
+        if (g_interface != 0)
+            delete g_interface;
+
+        std::string deviceName("/dev/tty");
+        deviceName.append(deviceStrPtr);
+        g_interface = HardwareInterface::open(deviceName.c_str(), 19200);
+
+        if (g_interface == 0)
+            printf("Error: could not open interface %s\n", deviceName.c_str());
+        else
+            printf("Interface opened\n");
+    }
+    return 0;
+}
+
+/** Squirrel command: closeInterface() */
+
+SQInteger closeInterface(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (g_interface != 0)
+    {
+        g_interface->close();
+        g_interface = 0;
+        printf("Interface closed\n");
     }
     return 0;
 }
@@ -229,12 +330,6 @@ int main(int argc, char *argv[])
 
     sq_setprintfunc(v, printfunc, errorfunc);
 
-    g_interface = HardwareInterface::open("COM3", 9600);
-    if (g_interface == 0)
-    {
-        printf("Error opening hardware interface!\n");
-    }
-
     sqstd_register_bloblib(v);
     sqstd_register_iolib(v);
     sqstd_register_systemlib(v);
@@ -243,6 +338,11 @@ int main(int argc, char *argv[])
 
     // register our own functions
     register_global_func(v, enumerateSerialPorts, _SC("showSerial"));
+
+    register_global_func(v, openInterface, _SC("openInterface"));
+    register_global_func(v, closeInterface, _SC("closeInterface"));
+    register_global_func(v, getInterfaceName, _SC("getInterfaceName"));
+
     register_global_func(v, targetReset, _SC("targetReset"));
 
     // load all the targets
@@ -251,6 +351,8 @@ int main(int argc, char *argv[])
     {
         printf("Cannot execute targets.nut script!\n");
     }
+
+    HardwareInterface::generateNamePacket("Arduino Uno Programmer");
 
     Interactive(v);
 

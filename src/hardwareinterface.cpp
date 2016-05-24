@@ -88,6 +88,12 @@ bool HardwareInterface::setTargetReset(bool reset)
     txcmd.APnDP   = 0x01;     // Not used but more efficient after COBS encoding if != 0
     txcmd.address = 0x01;     // Not used but more efficient after COBS encoding if != 0
 
+    if (!isOpen())
+    {
+        m_lastError = "COM port not open";
+        return false;
+    }
+
     // send the packet
     std::vector<uint8_t> buffer;
     buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
@@ -109,7 +115,7 @@ bool HardwareInterface::setTargetReset(bool reset)
             return false;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
-        if (rxcmd->status != 0)
+        if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
             return false;
@@ -164,12 +170,24 @@ bool HardwareInterface::readPacket(std::vector<uint8_t> &data)
     uint8_t c;
     do
     {
-        if (m_port.waitForReadyRead(m_timeout))
+        if (!m_port.bytesAvailable())
         {
-            m_lastError = "COM port timed out on read";
-            return false;
+            if (!m_port.waitForReadyRead(m_timeout))
+            {
+                m_lastError = "COM port timed out on read";
+                return false;
+            }
         }
+
         m_port.read((char*)&c,1);
+
+        /* Debug stuff:
+        if (c>32)
+            printf("%c",c);
+        else
+            printf("%d",c);
+        */
+
         if (c != 0)
             rxbuffer.push_back(c);
     } while(c != 0);
@@ -177,10 +195,9 @@ bool HardwareInterface::readPacket(std::vector<uint8_t> &data)
     // do COBS decoding
     if (COBS::decode(rxbuffer, data))
     {
-        if (rxbuffer.size() > 0)
+        if (data.size() > 0)
         {
-            rxbuffer.pop_back();    // remove trailing byte
-            data = rxbuffer;
+            data.pop_back();    // remove trailing NULL byte
         }
         else
         {
@@ -225,7 +242,7 @@ HWResult HardwareInterface::writeRegister(bool APnDP, uint32_t address, uint32_t
             return HWResult::INT_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
-        if (rxcmd->status != 0)
+        if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
             return HWResult::INT_ERROR;
@@ -279,7 +296,7 @@ HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t 
             return HWResult::INT_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
-        if (rxcmd->status != 0)
+        if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
             return HWResult::INT_ERROR;
@@ -305,11 +322,44 @@ HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t 
     return HWResult::INT_ERROR;
 }
 
+HWResult HardwareInterface::queryInterfaceName(std::string &name)
+{
+    HardwareTXCommand txcmd;
+    txcmd.cmdType = TXCMD_TYPE_GETPROGID;
+    txcmd.data    = 0x01010101;
+    txcmd.APnDP   = 1;
+    txcmd.address = 1;
+
+    // send the packet
+    std::vector<uint8_t> buffer;
+    buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
+    if (!writePacket(buffer))
+    {
+        printf("%s\n",getLastError().c_str());
+        return HWResult::INT_ERROR;
+    }
+
+    // receive status packet
+    if (!readPacket(buffer))
+    {
+        printf("%s\n",getLastError().c_str());
+        return HWResult::INT_ERROR;
+    }
+    else
+    {
+        // skip the RXCMD structure
+        name.clear();
+        buffer.erase(buffer.begin(), buffer.begin()+sizeof(HardwareRXCommand));
+        name.insert(name.begin(), buffer.begin(), buffer.end());
+        return HWResult::SWD_OK;
+    }
+}
+
 void HardwareInterface::generateOKPacket()
 {
     HardwareRXCommand rxcmd;
-    rxcmd.data      = 0xFF;
-    rxcmd.status    = 0;    // ok
+    rxcmd.data      = 0x01010101;
+    rxcmd.status    = RXCMD_STATUS_OK;    // ok
     rxcmd.swdcode   = 1;    // SWDOK
 
     std::vector<uint8_t> buffer, cobs;
@@ -320,6 +370,29 @@ void HardwareInterface::generateOKPacket()
         for(size_t i=0; i<cobs.size(); i++)
         {
             printf("  %02X,\n", cobs[i]);
+        }
+    }
+}
+
+void HardwareInterface::generateNamePacket(const std::string &deviceName)
+{
+    HardwareRXCommand rxcmd;
+    rxcmd.data      = 0x01010101;
+    rxcmd.status    = RXCMD_STATUS_OK;    // ok
+    rxcmd.swdcode   = 1;    // SWDOK
+
+    std::vector<uint8_t> buffer, cobs;
+    buffer.insert(buffer.begin(), (const uint8_t*)&rxcmd, ((const uint8_t*)&rxcmd) + sizeof(rxcmd));
+    buffer.insert(buffer.end(), deviceName.begin(), deviceName.end());
+    buffer.push_back(0); // add NULL terminator to string!
+
+    if (COBS::encode(buffer, cobs))
+    {
+        printf("const uint8_t deviceNamePacket[] = {\n");
+        for(size_t i=0; i<cobs.size(); i++)
+        {
+            printf(""
+                   "0x%02X,", cobs[i]);
         }
     }
 }

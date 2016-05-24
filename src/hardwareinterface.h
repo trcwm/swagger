@@ -63,15 +63,20 @@ public:
     /** read register */
     virtual HWResult readRegister(bool APnDP, uint32_t address, uint32_t &data);
 
+    /** read programmer ID string */
+    virtual HWResult queryInterfaceName(std::string &name);
+
     /** get the last error in human readable form */
     std::string getLastError() const
     {
         return m_lastError;
     }
 
-    /** for testing purposes */
+    /** for testing/development purposes */
     static void generateOKPacket();
 
+    /** for testing/developement purposes */
+    static void generateNamePacket(const std::string &deviceName);
 
 protected:
     bool writePacket(const std::vector<uint8_t> &data);

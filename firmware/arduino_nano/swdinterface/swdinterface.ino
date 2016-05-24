@@ -7,18 +7,24 @@
  
 #include <stdint.h>
 
-// Note: The arduino include systems is severly borked
+// Note: The arduino include systems is severely borked
 // you must make a special library directory in the
 // Arduino install directory, e.g. C:\Program Files (x86)\Arduino\libraries\swagger
-// can copy the protocol.h file in there.. :-/
+// can copy the include/protocol.h file in there.. :-/
 //
-
-#include "protocol.h"
+#include <protocol.h>
 
 #define LEDPIN 13
 
 uint8_t g_rxbuffer[32]; // packet receive buffer
 uint8_t g_idx = 0;      // write index into receive buffer
+
+// Arduino programmer packet
+const uint8_t programmerNamePacket[] = 
+{
+  0x1D,0x01,0x01,0x01,0x01,0x01,0x01,0x41,0x72,0x64,0x75,0x69,0x6E,0x6F,0x20,
+  0x55,0x6E,0x6F,0x20,0x50,0x72,0x6F,0x67,0x72,0x61,0x6D,0x6D,0x65,0x72,0x01,0x00
+};
 
 // *********************************************************
 //   COBS decoder (source: wikipedia)
@@ -110,7 +116,7 @@ void reply(uint8_t rxcmd_status, uint8_t swdcode, uint32_t data)
   cmd.data    = data;
   uint8_t encodebuffer[sizeof(HardwareRXCommand)+2];
   StuffData((uint8_t*)&cmd, sizeof(cmd), encodebuffer);
-  Serial.write((char*)encodebuffer);
+  Serial.write((char*)encodebuffer, strlen((char*)encodebuffer)+1);
   Serial.flush(); // wait for TX to be done. (do we need this?)
 }
 
@@ -120,7 +126,7 @@ void reply(uint8_t rxcmd_status, uint8_t swdcode, uint32_t data)
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  Serial.begin(19200);
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
 }
@@ -149,6 +155,7 @@ void loop()
         {
           default:
           case TXCMD_TYPE_UNKNOWN:
+            reply(RXCMD_STATUS_FAIL, SWDCODE_FAIL, 0x01010101);
             break;
           case TXCMD_TYPE_RESETPIN:
             if (executeReset(cmd->data))
@@ -175,6 +182,10 @@ void loop()
             {
               reply(RXCMD_STATUS_FAIL, SWDCODE_ACK, 0x01010101);
             }
+            break;
+          case TXCMD_TYPE_GETPROGID:
+            Serial.write((char*)programmerNamePacket, strlen((char*)programmerNamePacket)+1);
+            Serial.flush();
             break;
         }
       }

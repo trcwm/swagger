@@ -13,6 +13,7 @@ bool COBS::encode(const std::vector<uint8_t> &indata, std::vector<uint8_t> &outd
     size_t code_idx = 0;
     uint8_t code = 1;
 
+    outdata.clear();
     outdata.push_back(0);
 
     while(idx < end)
@@ -52,6 +53,7 @@ bool COBS::decode(const std::vector<uint8_t> &indata, std::vector<uint8_t> &outd
     size_t end = indata.size();
     size_t idx = 0;
 
+    outdata.clear();
     while(idx < end)
     {
         uint8_t code = indata[idx++];
@@ -62,7 +64,7 @@ bool COBS::decode(const std::vector<uint8_t> &indata, std::vector<uint8_t> &outd
         if (code < 0xFF)
             outdata.push_back(0);
     }
-    return false;
+    return true;
 }
 
 bool COBS::test()

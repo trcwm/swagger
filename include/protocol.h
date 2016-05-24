@@ -41,6 +41,7 @@
 #define TXCMD_TYPE_RESETPIN     1   // set /RESET pin state
 #define TXCMD_TYPE_READREG      2   // read a register
 #define TXCMD_TYPE_WRITEREG     3   // write a register
+#define TXCMD_TYPE_GETPROGID    4   // get programmer ID string (appended after HardwareRXCommand struct)
 
 #define RXCMD_STATUS_UNKNOWN    0   // unintialized structure
 #define RXCMD_STATUS_OK         1   // command processed OK
