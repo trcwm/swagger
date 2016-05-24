@@ -83,7 +83,7 @@ void HardwareInterface::close()
 bool HardwareInterface::setTargetReset(bool reset)
 {
     HardwareTXCommand txcmd;
-    txcmd.cmdType = cmdReset;
+    txcmd.cmdType = TXCMD_TYPE_RESETPIN;
     txcmd.data    = reset ? 1:0;
     txcmd.APnDP   = 0x01;     // Not used but more efficient after COBS encoding if != 0
     txcmd.address = 0x01;     // Not used but more efficient after COBS encoding if != 0
@@ -196,10 +196,10 @@ bool HardwareInterface::readPacket(std::vector<uint8_t> &data)
     return true;
 }
 
-SWDAckResult HardwareInterface::writeRegister(bool APnDP, uint32_t address, uint32_t data)
+HWResult HardwareInterface::writeRegister(bool APnDP, uint32_t address, uint32_t data)
 {
     HardwareTXCommand txcmd;
-    txcmd.cmdType = cmdWrite;
+    txcmd.cmdType = TXCMD_TYPE_WRITEREG;
     txcmd.data    = data;
     txcmd.APnDP   = APnDP ? 1:0;
     txcmd.address = (uint8_t)address;
@@ -209,51 +209,51 @@ SWDAckResult HardwareInterface::writeRegister(bool APnDP, uint32_t address, uint
     buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
     if (!writePacket(buffer))
     {
-        return SWDAckResult::INT_ERROR;
+        return HWResult::INT_ERROR;
     }
 
     // receive status packet
     if (!readPacket(buffer))
     {
-        return SWDAckResult::INT_ERROR;
+        return HWResult::INT_ERROR;
     }
     else
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            return SWDAckResult::INT_ERROR;
+            return HWResult::INT_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != 0)
         {
             m_lastError = "Protocol error";
-            return SWDAckResult::INT_ERROR;
+            return HWResult::INT_ERROR;
         }
         else
         {
             switch(rxcmd->swdcode)
             {
             case 1:
-                return SWDAckResult::SWD_OK;
+                return HWResult::SWD_OK;
             case 2:
-                return SWDAckResult::SWD_WAIT;
+                return HWResult::SWD_WAIT;
             case 4:
-                return SWDAckResult::SWD_FAULT;
+                return HWResult::SWD_FAULT;
             default:
                 m_lastError = "Unknown SWD ACK";
-                return SWDAckResult::INT_ERROR;
+                return HWResult::INT_ERROR;
             }
         }
     }
     // we should never get here..
-    return SWDAckResult::INT_ERROR;
+    return HWResult::INT_ERROR;
 }
 
-SWDAckResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t &data)
+HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t &data)
 {
     HardwareTXCommand txcmd;
-    txcmd.cmdType = cmdRead;
+    txcmd.cmdType = TXCMD_TYPE_READREG;
     txcmd.data    = data;
     txcmd.APnDP   = APnDP ? 1:0;
     txcmd.address = (uint8_t)address;
@@ -263,26 +263,26 @@ SWDAckResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint3
     buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
     if (!writePacket(buffer))
     {
-        return SWDAckResult::INT_ERROR;
+        return HWResult::INT_ERROR;
     }
 
     // receive status packet
     if (!readPacket(buffer))
     {
-        return SWDAckResult::INT_ERROR;
+        return HWResult::INT_ERROR;
     }
     else
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            return SWDAckResult::INT_ERROR;
+            return HWResult::INT_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != 0)
         {
             m_lastError = "Protocol error";
-            return SWDAckResult::INT_ERROR;
+            return HWResult::INT_ERROR;
         }
         else
         {
@@ -290,19 +290,19 @@ SWDAckResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint3
             switch(rxcmd->swdcode)
             {
             case 1:
-                return SWDAckResult::SWD_OK;
+                return HWResult::SWD_OK;
             case 2:
-                return SWDAckResult::SWD_WAIT;
+                return HWResult::SWD_WAIT;
             case 4:
-                return SWDAckResult::SWD_FAULT;
+                return HWResult::SWD_FAULT;
             default:
                 m_lastError = "Unknown SWD ACK";
-                return SWDAckResult::INT_ERROR;
+                return HWResult::INT_ERROR;
             }
         }
     }
     // we should never get here..
-    return SWDAckResult::INT_ERROR;
+    return HWResult::INT_ERROR;
 }
 
 void HardwareInterface::generateOKPacket()

@@ -7,41 +7,23 @@
  
 #include <stdint.h>
 
-uint8_t rxbuffer[32];
-uint8_t idx = 0;
+// Note: The arduino include systems is severly borked
+// you must make a special library directory in the
+// Arduino install directory, e.g. C:\Program Files (x86)\Arduino\libraries\swagger
+// can copy the protocol.h file in there.. :-/
+//
 
-const uint8_t OKPacket[] = {
-  0x01,
-  0x03,
-  0x01,
-  0xFF,
-  0x01,
-  0x01,
-  0x01,
-  0x00};
+#include "protocol.h"
 
+#define LEDPIN 13
 
-//FIXME: get this info from the main program.
-struct HardwareTXCommand
-{
-    uint8_t     cmdType;    // 0 = reset condition, 1 = read register, 2 = write register
-    uint8_t     address;   // bits [2:3] of register address
-    uint8_t     APnDP;      // Address or data register access (1 = address)
-    uint32_t    data;       // reset line state or write register data
-};
+uint8_t g_rxbuffer[32]; // packet receive buffer
+uint8_t g_idx = 0;      // write index into receive buffer
 
-/** format of packets received from the hardware interface
-    Note that this data will be encapsulated in a
-    COBS packet. */
-struct HardwareRXCommand
-{
-    uint8_t     status;     // status of communication 0 = OK
-    uint8_t     swdcode;    // swd return code
-    uint32_t    data;       // read register data
-};
+// *********************************************************
+//   COBS decoder (source: wikipedia)
+// *********************************************************
 
-
-// COBS decoder (source: wikipedia)
 void UnStuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
 {
   const uint8_t *endptr = ptr + N;
@@ -58,7 +40,9 @@ void UnStuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
   }
 }
 
-// COBS encoder: (source: wikipedia)
+// *********************************************************
+//   COBS encoder (source: wikipedia)
+// *********************************************************
 
 #define FinishBlock(X) (*code_ptr = (X), code_ptr = dst++, code = 0x01)
 
@@ -84,6 +68,55 @@ void StuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
   FinishBlock(code);
 }
 
+// *********************************************************
+//   Execute Reset
+// *********************************************************
+
+bool executeReset(uint8_t pin)
+{
+  digitalWrite(LEDPIN, (pin>0) ? HIGH:LOW);
+  return true;
+}
+
+// *********************************************************
+//   Execute Read Register
+// *********************************************************
+
+bool executeReadRegister(uint8_t APnDP, uint8_t address, uint32_t &data)
+{
+  data = 0x1234567;
+  return true;
+}
+
+// *********************************************************
+//   Execute Write Register
+// *********************************************************
+
+bool executeWriteRegister(uint8_t APnDP, uint8_t address, uint32_t &data)
+{
+  return true;
+}
+
+// *********************************************************
+//   Send reply
+// *********************************************************
+
+void reply(uint8_t rxcmd_status, uint8_t swdcode, uint32_t data)
+{
+  // Send COBS encoded packet
+  HardwareRXCommand cmd;
+  cmd.status  = rxcmd_status;
+  cmd.swdcode = swdcode;
+  cmd.data    = data;
+  uint8_t encodebuffer[sizeof(HardwareRXCommand)+2];
+  StuffData((uint8_t*)&cmd, sizeof(cmd), encodebuffer);
+  Serial.write((char*)encodebuffer);
+  Serial.flush(); // wait for TX to be done. (do we need this?)
+}
+
+// *********************************************************
+//   Main program
+// *********************************************************
 
 void setup() {
   // put your setup code here, to run once:
@@ -104,45 +137,60 @@ void loop()
     if (byteRead == 0)
     {
       //decode COBS packet
-      if (idx < sizeof(rxbuffer))
+      if (g_idx < sizeof(g_rxbuffer))
       {
-        uint8_t decodebuffer[sizeof(rxbuffer)]; // decode bytes is always less than encoded bytes..
-        UnStuffData(rxbuffer, idx, decodebuffer);
+        uint8_t decodebuffer[sizeof(g_rxbuffer)]; // decode bytes is always less than encoded bytes..
+        UnStuffData(g_rxbuffer, g_idx, decodebuffer);
         HardwareTXCommand *cmd = (HardwareTXCommand *)&decodebuffer;
-        if (cmd->cmdType == 0)
+
+        // execute command
+        uint32_t data;
+        switch(cmd->cmdType)
         {
-          if (cmd->data == 1)
-          {
-            digitalWrite(13, HIGH);
-          }
-          else
-          {
-            digitalWrite(13, LOW);
-          }
+          default:
+          case TXCMD_TYPE_UNKNOWN:
+            break;
+          case TXCMD_TYPE_RESETPIN:
+            if (executeReset(cmd->data))
+              reply(RXCMD_STATUS_OK, SWDCODE_ACK, 0x01010101);
+            else
+              reply(RXCMD_STATUS_FAIL, SWDCODE_ACK, 0x01010101);
+            break;
+          case TXCMD_TYPE_READREG:
+            if (executeReadRegister(cmd->APnDP, cmd->address, data))
+            {
+              reply(RXCMD_STATUS_OK, SWDCODE_ACK, data);
+            }
+            else
+            {
+              reply(RXCMD_STATUS_FAIL, SWDCODE_ACK, 0x01010101);
+            }
+            break;
+          case TXCMD_TYPE_WRITEREG:
+            if (executeWriteRegister(cmd->APnDP, cmd->address, cmd->data))
+            {
+              reply(RXCMD_STATUS_OK, SWDCODE_ACK, data);
+            }
+            else
+            {
+              reply(RXCMD_STATUS_FAIL, SWDCODE_ACK, 0x01010101);
+            }
+            break;
         }
       }
-      idx = 0;
-      
-      // Send COBS encoded packet
-      HardwareRXCommand cmd;
-      cmd.status  = 0;  // OK
-      cmd.swdcode = 1;  // ACK
-      cmd.data    = 0x01010101;  // 1 for better COBS encoding
-      uint8_t encodebuffer[sizeof(HardwareRXCommand)+2];
-      StuffData((uint8_t*)&cmd, sizeof(cmd), encodebuffer);
-      Serial.write((char*)encodebuffer);
+      g_idx = 0;
     }
     else
     {
-      if (idx < sizeof(rxbuffer))
+      if (g_idx < sizeof(g_rxbuffer))
       {
-        rxbuffer[idx++] = byteRead;
+        g_rxbuffer[g_idx++] = byteRead;
       }
       else
       {
         // avoid buffer overrun :-(
         // TODO: send error packet
-        idx = 0; 
+        g_idx = 0; 
       }
     }
   }

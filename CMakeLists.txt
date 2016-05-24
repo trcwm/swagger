@@ -59,6 +59,7 @@ set(SWAGGER_SRC src/main.cpp
                 src/cobs.cpp
                 src/hardwareinterface.cpp)
 
+include_directories(${CMAKE_SOURCE_DIR}/include)
 add_executable (swagger ${SQUIRREL_SRC} ${SQSTDLIB_SRC} ${SWAGGER_SRC})
 
 qt5_use_modules(swagger SerialPort)

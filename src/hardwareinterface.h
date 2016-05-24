@@ -14,7 +14,9 @@
 #include <QtSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
 
-enum SWDAckResult
+#include "protocol.h"
+
+enum HWResult
 {
     SWD_OK = 1,
     SWD_WAIT = 2,
@@ -22,43 +24,16 @@ enum SWDAckResult
     INT_ERROR = 4   	// internal error
 };
 
-#pragma pack(push,1)
-
-/** format of packets sent to the hardware interface
-    Note that this data will be encapsulated in a
-    COBS packet. */
-struct HardwareTXCommand
-{
-    uint8_t     cmdType;    // 0 = reset condition, 1 = read register, 2 = write register
-    uint8_t     address;   // bits [2:3] of register address
-    uint8_t     APnDP;      // Address or data register access (1 = address)
-    uint32_t    data;       // reset line state or write register data
-};
-
-/** format of packets received from the hardware interface
-    Note that this data will be encapsulated in a
-    COBS packet. */
-struct HardwareRXCommand
-{
-    uint8_t     status;     // status of communication 0 = OK
-    uint8_t     swdcode;    // swd return code
-    uint32_t    data;       // read register data
-};
-
-#pragma pack(pop)
 
 class HardwareInterface
 {
-    const uint8_t cmdReset  = 0;
-    const uint8_t cmdRead   = 1;
-    const uint8_t cmdWrite  = 2;
-
 public:
     virtual ~HardwareInterface();
 
     /** open a COM port to the hardware interface */
     static HardwareInterface* open(const char *comport, uint32_t baudrate);
 
+    /** print the available COM ports to the console */
     static void printInterfaces()
     {
         foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
@@ -83,10 +58,10 @@ public:
     virtual bool setTargetReset(bool reset);
 
     /** write register */
-    virtual SWDAckResult writeRegister(bool APnDP, uint32_t address, uint32_t data);
+    virtual HWResult writeRegister(bool APnDP, uint32_t address, uint32_t data);
 
     /** read register */
-    virtual SWDAckResult readRegister(bool APnDP, uint32_t address, uint32_t &data);
+    virtual HWResult readRegister(bool APnDP, uint32_t address, uint32_t &data);
 
     /** get the last error in human readable form */
     std::string getLastError() const
