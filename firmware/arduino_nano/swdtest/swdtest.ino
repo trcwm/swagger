@@ -11,7 +11,18 @@
 #define SWDDAT_PIN 2
 #define SWDCLK_PIN 3
 
-#define SWDDELAY_us 300
+#define SWDDELAY_us 100
+
+bool calcParity32(uint32_t x) 
+{
+   unsigned y;
+   y = x ^ (x >> 1);
+   y = y ^ (y >> 2);
+   y = y ^ (y >> 4);
+   y = y ^ (y >> 8);
+   y = y ^ (y >>16);
+   return (y & 1) != 0;
+}
 
 // *********************************************************
 //   Perform SWD transaction
@@ -87,6 +98,8 @@ void SWDIdle()
   }
 }
 
+
+
 uint32_t SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
 {
   uint32_t result = 0;
@@ -139,20 +152,21 @@ uint32_t SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
 
     // turn around time
     SWDReadBit();         // trn
-    
+
+    bool parity = calcParity32(data);
     for(uint8_t i=0; i<32; i++)
     { 
-      if (data >= 0x80000000)
+      if ((data & 1) != 0)
         SWDWriteBit(true);
       else
         SWDWriteBit(false);
-      data <<= 1;
+      data >>= 1;
     }
 
-    // TODO: generate correct parity
-    SWDWriteBit(false);
+    SWDWriteBit(parity);
 
-    SWDIdle();    
+    // turn-around    
+    SWDReadBit();    
   }
   else
   {
@@ -160,14 +174,15 @@ uint32_t SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
     result = 0;
     for(uint8_t i=0; i<32; i++)
     {
-      result <<= 1;
+      result >>= 1;
       if (SWDReadBit())
-        result |= 1;
+        result |= 0x80000000;
     }
 
     bool parity = SWDReadBit();
 
-    SWDIdle();
+    // turn-around    
+    SWDReadBit();
     
     //TODO: get SWD code
     //      and check parity.. 
@@ -191,13 +206,14 @@ void unlockSWD()
   {
     SWDWriteBit(true);
   }
-  
+
+  /*
   SWDWord(0x6DB7);
     
   for(uint32_t i=0; i<64; i++)
   {
     SWDWriteBit(true);
-  }
+  }*/
   
   SWDIdle();
   
