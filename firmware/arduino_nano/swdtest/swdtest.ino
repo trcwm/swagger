@@ -11,7 +11,7 @@
 #define SWDDAT_PIN 2
 #define SWDCLK_PIN 3
 
-#define SWDDELAY_us 10
+#define SWDDELAY_us 300
 
 // *********************************************************
 //   Perform SWD transaction
@@ -180,17 +180,27 @@ void unlockSWD()
   pinMode(SWDDAT_PIN, OUTPUT);
   delayMicroseconds(1000);
 
-  for(uint32_t i=0; i<50; i++)
+  for(uint32_t i=0; i<64; i++)
   {
     SWDWriteBit(true);
   }
+  
   SWDWord(0x79E7);
-  /*
-  for(uint32_t i=0; i<50; i++)
+
+  for(uint32_t i=0; i<64; i++)
   {
     SWDWriteBit(true);
   }
-*/  
+  
+  SWDWord(0x6DB7);
+    
+  for(uint32_t i=0; i<64; i++)
+  {
+    SWDWriteBit(true);
+  }
+  
+  SWDIdle();
+  
   //READ IDCODE, hopefully.. 
   Serial.println(SWDTransaction(false, true, 0, 0), HEX);
 }
