@@ -15,6 +15,8 @@
 #include <protocol.h>
 
 #define LEDPIN 13
+#define SWDDAT_PIN 3
+#define SWDCLK_PIN 4
 
 uint8_t g_rxbuffer[32]; // packet receive buffer
 uint8_t g_idx = 0;      // write index into receive buffer
@@ -118,6 +120,77 @@ void reply(uint8_t rxcmd_status, uint8_t swdcode, uint32_t data)
   StuffData((uint8_t*)&cmd, sizeof(cmd), encodebuffer);
   Serial.write((char*)encodebuffer, strlen((char*)encodebuffer)+1);
   Serial.flush(); // wait for TX to be done. (do we need this?)
+}
+
+// *********************************************************
+//   Perform SWD transaction
+// *********************************************************
+
+void SWDInitPins()
+{
+  pinMode(SWDDAT_PIN, INPUT);     // High-Z state
+  pinMode(SWDCLK_PIN, OUTPUT);
+  digitalWrite(SWDCLK_PIN, LOW);  // SWD clock is normally low
+}
+
+// Data must be output to the target after the falling edge of SWDCLK
+// Data will be set by the target on the rising edge of SWDCLK
+
+#define SWDDELAY_us 1000
+
+// send bits over SWD
+void SWDSendBits(uint8_t b, uint8_t bits)
+{
+  // SWDDAT must be set in OUTPUT mode
+  data <<= (bits-8);
+    
+  for(uint8_t i=0; i<bits; i++)
+  {
+    digitalWrite(SWDCLK_PIN, HIGH);
+    if (data<127)
+      digitalWrite(SWDDAT_PIN, HIGH);
+    else
+      digitalWrite(SWDDAT_PIN, LOW);
+      
+    delayMicroseconds(SWDDELAY_us);
+    
+    digitalWrite(SWDCLK_PIN, LOW);
+    delayMicroseconds(SWDDELAY_us);
+  }
+}
+
+void SWDLineReset()
+{
+  pinMode(SWDDAT_PIN, OUTPUT);
+  
+  for(uint8_t i=0; i<50; i++)
+  {
+    digitalWrite(SWDCLK_PIN, HIGH);
+    digitalWrite(SWDDAT_PIN, HIGH);
+    delayMicroseconds(SWDDELAY_us);
+    digitalWrite(SWDCLK_PIN, LOW);
+    delayMicroseconds(SWDDELAY_us);    
+  }
+}
+
+void SWDTransaction()
+{
+  // SWDCLK is assumed to be low at the start
+
+  pinMode(SWDDAT_PIN, OUTPUT);
+  delayMicroseconds(SWDDELAY_us);
+  
+}
+
+void unlockSWD()
+{
+  pinMode(SWDDAT_PIN, OUTPUT);
+  delayMicroseconds(1000);
+  
+  SWDSendBits(0x79, 8);
+  SWDSendBits(0xE7, 8);
+
+  SWDLineReset();
 }
 
 // *********************************************************
