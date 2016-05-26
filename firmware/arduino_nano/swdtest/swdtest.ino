@@ -15,7 +15,7 @@
 
 bool calcParity32(uint32_t x) 
 {
-   unsigned y;
+   uint32_t y;
    y = x ^ (x >> 1);
    y = y ^ (y >> 2);
    y = y ^ (y >> 4);
@@ -127,23 +127,37 @@ uint32_t SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
   SWDReadBit();         // trn
 
   // read acknowledge
+  uint8_t ackbits = 0;
+  
   if (SWDReadBit())
-    Serial.print("1");
-  else
-    Serial.print("0");
+  {
+    ackbits |= 0x04;
+  }
+  ackbits >>= 1;
 
   if (SWDReadBit())
-    Serial.print("1");
-  else
-    Serial.print("0");
+  {
+    ackbits |= 0x04;
+  }
+  ackbits >>= 1;
 
   if (SWDReadBit())
-    Serial.print("1");
-  else
-    Serial.print("0");
+  {
+    ackbits |= 0x04;
+  }
 
-  //FIXME: if we get a WAIT or FAULT response,
-  // the packet ends here .. 
+  if (ackbits != 1)
+  {
+    // TODO: handle this exception!
+    // FIXME: if we get a WAIT or FAULT response,
+    // the packet ends here ..     
+    Serial.println("Error in transaction!");
+    return 0;
+  }
+  else 
+  {
+    Serial.println("OK");
+  }
 
   if (!RnW)
   {    
@@ -160,6 +174,7 @@ uint32_t SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
         SWDWriteBit(true);
       else
         SWDWriteBit(false);
+        
       data >>= 1;
     }
 
@@ -184,8 +199,6 @@ uint32_t SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
     // turn-around    
     SWDReadBit();
     
-    //TODO: get SWD code
-    //      and check parity.. 
     return result;
   }
 }
@@ -206,35 +219,13 @@ void unlockSWD()
   {
     SWDWriteBit(true);
   }
-
-  /*
-  SWDWord(0x6DB7);
-    
-  for(uint32_t i=0; i<64; i++)
-  {
-    SWDWriteBit(true);
-  }*/
   
   SWDIdle();
   
-  //READ IDCODE, hopefully.. 
+  //READ IDCODE, hopefully..
+  Serial.print("Part IDCODE: "); 
   Serial.println(SWDTransaction(false, true, 0, 0), HEX);
-}
-
-void unlockSWD2()
-{
-  pinMode(SWDDAT_PIN, OUTPUT);
-
-  const char unlocksequence[] = "111111111111111111111111111111111111111111111111111111110111100111100111111111111111111111111111111111111111111111111111111111110110110110110111111111111111111111111111111111111111111111111111111111110000000000000000";
-  for(uint8_t i=0; i<sizeof(unlocksequence); i++)
-  {
-    if (unlocksequence[i] == '1')
-      SWDWriteBit(true);
-    else
-      SWDWriteBit(false); 
-  }
-
-  Serial.println(SWDTransaction(false, true, 0, 0), HEX);
+  
 }
 
 // *********************************************************
@@ -253,11 +244,19 @@ void setup()
 
   // wait for serial comms to open
   while( !Serial) {}
+
+  unlockSWD();
+
+  SWDIdle();
+  
+  SWDTransaction(false, false, 1, CSYSPWRUPREQ | CDBGRSTREQ);
   
   while(1) 
   {
-    delayMicroseconds(1000000);
-    unlockSWD();
+    SWDIdle();
+    Serial.print("CTRL/STAT: ");
+    Serial.println(SWDTransaction(false, true, 1, 0), HEX);
+    delayMicroseconds(500000);
   };
 
 }
@@ -266,5 +265,4 @@ void loop()
 {
 
 }
-
 
