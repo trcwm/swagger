@@ -272,7 +272,7 @@ uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32
   configDataPin(true);  // output
   writeBit(false);      // start with a zero bit
 
-  bool parity = 1 ^ APnDP ^ ((address & 0x01) > 0) ^ ((address & 0x02) > 0);
+  bool parity = 0 ^ APnDP ^ ((address & 0x01) > 0) ^ ((address & 0x02) > 0);
 
   writeBit(true);       // start bit
   writeBit(APnDP);    

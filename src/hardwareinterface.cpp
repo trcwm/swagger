@@ -348,12 +348,14 @@ HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t 
     buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
     if (!writePacket(buffer))
     {
+        printf("%s\n", getLastError().c_str());
         return INT_ERROR;
     }
 
     // receive status packet
     if (!readPacket(buffer))
     {
+        printf("%s\n", getLastError().c_str());
         return INT_ERROR;
     }
     else
@@ -361,12 +363,14 @@ HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t 
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
+            printf("%s\n", getLastError().c_str());
             return INT_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
+            printf("%s\n", getLastError().c_str());
             return INT_ERROR;
         }
         else
@@ -382,6 +386,7 @@ HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t 
                 return SWD_FAULT;
             default:
                 m_lastError = "Unknown SWD ACK";
+                printf("%s\n", getLastError().c_str());
                 return INT_ERROR;
             }
         }

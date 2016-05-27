@@ -191,12 +191,12 @@ SQInteger doReadTransaction(HSQUIRRELVM v)
         return 0;   // no arguments returned;
 
     SQInteger APnDP, address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &APnDP)))
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &APnDP)))
     {
         printf("First argument should be an integer");
         return 0;
     }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
     {
         printf("Second argument should be an integer");
         return 0;
@@ -242,11 +242,13 @@ SQInteger doWriteTransaction(HSQUIRRELVM v)
         return 0;
     }
 
+    printf("doWriteTransaction %d\n", nargs);
+
     if (nargs != 4)
         return 0;   // no arguments returned;
 
     SQInteger APnDP, address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &APnDP)))
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -3, &APnDP)))
     {
         printf("First argument should be an integer");
         return 0;
@@ -256,7 +258,7 @@ SQInteger doWriteTransaction(HSQUIRRELVM v)
         printf("Second argument should be an integer");
         return 0;
     }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -3, &data)))
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
     {
         printf("Third argument should be an integer");
         return 0;
@@ -468,8 +470,8 @@ int main(int argc, char *argv[])
     printf("  closeInterface()\n");
     printf("  showSerial() to enumerate serial interfaces.\n");
     printf("  table{.swdcode,.idcode} = connect() to connect to the target.\n");
-    printf("  swdcode = write(APnDP, address/4, data) to write to a register.\n");
-    printf("  table{.swdcode,.data} = read(APnDP, address/4) to read a register.\n");
+    printf("  swdcode = dwrite(APnDP, address/4, data) to write to a register.\n");
+    printf("  table{.swdcode,.data} = dread(APnDP, address/4) to read a register.\n");
     printf("\n");
 
     v=sq_open(1024);
@@ -491,8 +493,8 @@ int main(int argc, char *argv[])
     register_global_func(v, closeInterface, _SC("closeInterface"));
     register_global_func(v, getInterfaceName, _SC("getInterfaceName"));
     register_global_func(v, targetConnect, _SC("connect"));
-    register_global_func(v, doWriteTransaction, _SC("write"));
-    register_global_func(v, doReadTransaction, _SC("read"));
+    register_global_func(v, doWriteTransaction, _SC("dwrite"));
+    register_global_func(v, doReadTransaction, _SC("dread"));
     register_global_func(v, targetReset, _SC("targetReset"));
 
     // load all the targets
