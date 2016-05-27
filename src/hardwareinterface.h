@@ -16,14 +16,12 @@
 
 #include "protocol.h"
 
-enum HWResult
-{
-    SWD_OK = 1,
-    SWD_WAIT = 2,
-    SWD_FAULT = 3,
-    INT_ERROR = 4   	// internal error
-};
+typedef uint32_t HWResult;
 
+#define SWD_OK 1
+#define SWD_WAIT 2
+#define SWD_FAULT 4
+#define INT_ERROR 99
 
 class HardwareInterface
 {
@@ -56,6 +54,9 @@ public:
 
     /** set the reset pin of the target */
     virtual bool setTargetReset(bool reset);
+
+    /** connect to the target */
+    virtual HWResult connect(uint32_t &idcode);
 
     /** write register */
     virtual HWResult writeRegister(bool APnDP, uint32_t address, uint32_t data);

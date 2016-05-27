@@ -245,20 +245,22 @@ void setup()
   // wait for serial comms to open
   while( !Serial) {}
 
-  unlockSWD();
+  while(1) 
+  {
+    unlockSWD();
+    SWDIdle();  
+    delayMicroseconds(200000);  
+  }
 
-  SWDIdle();
-  
-  //SWDTransaction(false, false, 1, CSYSPWRUPREQ | CDBGRSTREQ);
-  
-  while(1) {}
+  /*
   {
     SWDIdle();
     Serial.print("CTRL/STAT: ");
     Serial.println(SWDTransaction(false, true, 1, 0), HEX);
     delayMicroseconds(500000);
   };
-
+  */
+  //SWDTransaction(false, false, 1, CSYSPWRUPREQ | CDBGRSTREQ);
 }
 
 void loop() 

@@ -18,8 +18,8 @@
 
 #define SWDDELAY_us 1000
 #define LEDPIN 13
-#define SWDDAT_PIN 3
-#define SWDCLK_PIN 4
+#define SWDDAT_PIN 2
+#define SWDCLK_PIN 3
 
 uint8_t g_rxbuffer[32]; // packet receive buffer
 uint8_t g_idx = 0;      // write index into receive buffer
@@ -216,7 +216,7 @@ uint8_t SWDInterfaceBase::doConnect(uint32_t &idcode)
   writeWord32(0xE79E);  // JTAG to SWD v5.x unlock code
   lineReset();
   lineIdle();
-  return doReadTransaction(true, 0, idcode);
+  return doReadTransaction(false, 0, idcode);
 }
 
 uint8_t SWDInterfaceBase::doReadTransaction(bool APnDP, uint8_t address, uint32_t &data)
@@ -467,6 +467,7 @@ void setup()
   Serial.begin(19200);
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
+  pinMode(SWDCLK_PIN, OUTPUT);
 
   g_interface = new ArduinoSWDInterface();
   g_interface->initPins();
@@ -501,16 +502,20 @@ void loop()
             reply(RXCMD_STATUS_OK, SWDCODE_FAIL, cmd->cmdType);
             break;
           case TXCMD_TYPE_RESETPIN:
-            // as of yet unsupported but misuse it to do a line reset / connect
+            // as of yet unsupported
+            //swdcode = g_interface->doConnect(data);
+            reply(RXCMD_STATUS_OK, SWDCODE_ACK, 0);
+            break;
+          case TXCMD_TYPE_CONNECT:
             swdcode = g_interface->doConnect(data);
-            reply(RXCMD_STATUS_OK, SWDCODE_ACK, data);
+            reply(RXCMD_STATUS_OK, SWDCODE_ACK, data);  // return IDCODE
             break;
           case TXCMD_TYPE_READREG:
-            swdcode = g_interface->doReadTransaction(cmd->APnDP > 0, cmd->address, data);
+            swdcode = g_interface->doReadTransaction((cmd->APnDP) > 0, cmd->address, data);
             reply(RXCMD_STATUS_OK, swdcode, data);
             break;
           case TXCMD_TYPE_WRITEREG:
-            swdcode = g_interface->doWriteTransaction(cmd->APnDP > 0, cmd->address, cmd->data);
+            swdcode = g_interface->doWriteTransaction((cmd->APnDP) > 0, cmd->address, cmd->data);
             reply(RXCMD_STATUS_OK, swdcode, cmd->data);
             break;
           case TXCMD_TYPE_GETPROGID:

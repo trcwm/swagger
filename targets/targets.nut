@@ -78,8 +78,8 @@ function registerTarget(target_info)
 
 try
 {
-    dofile("targets\\nxp\\mkv10z.nut");
-    dofile("targets\\nxp\\lpc13.nut");
+    dofile("..\\targets\\nxp\\mkv10z.nut");
+    dofile("..\\targets\\nxp\\lpc13.nut");
     print("targets loaded!");
 }
 catch(error)
