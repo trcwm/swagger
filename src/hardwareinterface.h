@@ -82,8 +82,11 @@ protected:
     bool writePacket(const std::vector<uint8_t> &data);
     bool readPacket(std::vector<uint8_t> &data);
 
+    void printPacket(const std::vector<uint8_t> &data);
+
     HardwareInterface(const char *comport, uint32_t baudrate);
 
+    bool        m_debug;
     uint32_t    m_timeout;
     QSerialPort m_port;
     std::string m_lastError;

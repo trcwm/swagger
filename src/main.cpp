@@ -195,7 +195,7 @@ SQInteger openInterface(HSQUIRRELVM v)
         if (g_interface != 0)
             delete g_interface;
 
-        std::string deviceName("/dev/tty");
+        std::string deviceName("/dev/tty.");
         deviceName.append(deviceStrPtr);
         g_interface = HardwareInterface::open(deviceName.c_str(), 19200);
 
@@ -321,8 +321,10 @@ int main(int argc, char *argv[])
     printf("Using %s (%d bits)\n",SQUIRREL_VERSION,((int)(sizeof(SQInteger)*8)));
     printf("\nuse:\n");
     printf("  quit() to exit.\n");
+    printf("  openInterface(<integer> | <string>)\n");
+    printf("  closeInterface()\n");
     printf("  showSerial() to enumerate serial interfaces.\n");
-    printf("  targetReset(int value) to change reset.\n");
+    printf("  targetReset(<integer>) to change reset.\n");
     printf("\n");
 
     v=sq_open(1024);
@@ -352,7 +354,7 @@ int main(int argc, char *argv[])
         printf("Cannot execute targets.nut script!\n");
     }
 
-    HardwareInterface::generateNamePacket("Arduino Uno Programmer");
+    //HardwareInterface::generateNamePacket("Arduino Uno Programmer");
 
     Interactive(v);
 

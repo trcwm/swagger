@@ -11,7 +11,7 @@
 #include "cobs.h"
 
 HardwareInterface* HardwareInterface::open(const char *comport, uint32_t baudrate)
-{
+{    
     try
     {
         HardwareInterface *interface = new HardwareInterface(comport, baudrate);
@@ -35,6 +35,7 @@ HardwareInterface::~HardwareInterface()
 
 HardwareInterface::HardwareInterface(const char *comport, uint32_t baudrate) : m_timeout(1000)
 {
+    m_debug = true;
     switch(baudrate)
     {
     case 1200:
@@ -105,6 +106,7 @@ bool HardwareInterface::setTargetReset(bool reset)
     // receive status packet
     if (!readPacket(buffer))
     {
+        printf("%s\n", getLastError().c_str());
         return false;
     }
     else
@@ -120,6 +122,8 @@ bool HardwareInterface::setTargetReset(bool reset)
             m_lastError = "Protocol error";
             return false;
         }
+
+        printf("%d IDCODE = %08X\n", rxcmd->swdcode, rxcmd->data);
     }
     return true;
 }
@@ -136,6 +140,11 @@ bool HardwareInterface::writePacket(const std::vector<uint8_t> &data)
     std::vector<uint8_t> cobsbuffer;
     if (COBS::encode(data, cobsbuffer))
     {
+        if (m_debug)
+        {
+            printf("TX ");
+            printPacket(cobsbuffer);
+        }
         if (m_port.write((const char*)&cobsbuffer[0], cobsbuffer.size()) != cobsbuffer.size())
         {
             // unexpected fragmentation .. :-0
@@ -180,23 +189,29 @@ bool HardwareInterface::readPacket(std::vector<uint8_t> &data)
         }
 
         m_port.read((char*)&c,1);
+        rxbuffer.push_back(c);
 
-        /* Debug stuff:
-        if (c>32)
-            printf("%c",c);
-        else
-            printf("%d",c);
-        */
-
-        if (c != 0)
-            rxbuffer.push_back(c);
     } while(c != 0);
+
+    if (m_debug)
+    {
+        printf("RX ");
+        printPacket(rxbuffer);
+    }
+
+    // remove trailing zero
+    rxbuffer.pop_back();
 
     // do COBS decoding
     if (COBS::decode(rxbuffer, data))
     {
         if (data.size() > 0)
         {
+            if (m_debug)
+            {
+                printf("RX DECODED: ");
+                printPacket(data);
+            }
             data.pop_back();    // remove trailing NULL byte
         }
         else
@@ -224,6 +239,7 @@ HWResult HardwareInterface::writeRegister(bool APnDP, uint32_t address, uint32_t
     // send the packet
     std::vector<uint8_t> buffer;
     buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
+
     if (!writePacket(buffer))
     {
         return HWResult::INT_ERROR;
@@ -333,6 +349,7 @@ HWResult HardwareInterface::queryInterfaceName(std::string &name)
     // send the packet
     std::vector<uint8_t> buffer;
     buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
+
     if (!writePacket(buffer))
     {
         printf("%s\n",getLastError().c_str());
@@ -353,6 +370,17 @@ HWResult HardwareInterface::queryInterfaceName(std::string &name)
         name.insert(name.begin(), buffer.begin(), buffer.end());
         return HWResult::SWD_OK;
     }
+}
+
+void HardwareInterface::printPacket(const std::vector<uint8_t> &data)
+{
+    size_t N = data.size();
+
+    for(size_t i=0; i<N; i++)
+    {
+        printf("%02X ", data[i]);
+    }
+    printf("\n");
 }
 
 void HardwareInterface::generateOKPacket()

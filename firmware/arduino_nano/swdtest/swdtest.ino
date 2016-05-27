@@ -249,9 +249,9 @@ void setup()
 
   SWDIdle();
   
-  SWDTransaction(false, false, 1, CSYSPWRUPREQ | CDBGRSTREQ);
+  //SWDTransaction(false, false, 1, CSYSPWRUPREQ | CDBGRSTREQ);
   
-  while(1) 
+  while(1) {}
   {
     SWDIdle();
     Serial.print("CTRL/STAT: ");

@@ -36,7 +36,8 @@ class SWDInterfaceBase
 {
   public:
     SWDInterfaceBase();
-
+    virtual ~SWDInterfaceBase() {}
+    
     /** Initialize/configure SWD pins.
      *  Note: it is assumed that the clock pin has already been
      *  configured as an output.
@@ -115,7 +116,7 @@ class SWDInterfaceBase
 
 SWDInterfaceBase::SWDInterfaceBase()
 {
-  initPins();
+  //initPins();
 }
 
 uint32_t SWDInterfaceBase::calcParity(uint32_t x)
@@ -315,7 +316,7 @@ uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32
 class ArduinoSWDInterface : public SWDInterfaceBase
 {
   public:
-    //ArduinoSWDInterface();
+    ArduinoSWDInterface() : SWDInterfaceBase() {}
 
   protected:
     /** Set the state of the output pin.
@@ -379,7 +380,7 @@ void ArduinoSWDInterface::doDelay()
  * 
  */
 
-ArduinoSWDInterface g_interface;
+ArduinoSWDInterface *g_interface = 0;
 
 // Arduino programmer packet
 const uint8_t programmerNamePacket[] = 
@@ -395,12 +396,11 @@ const uint8_t programmerNamePacket[] =
 void UnStuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
 {
   const uint8_t *endptr = ptr + N;
-  
   while (ptr < endptr)
   {
-    int code = *ptr++;
-    
-    for (int i=1; i<code; i++)
+    uint8_t code = *ptr++;
+
+    for (uint32_t i=1; (ptr<endptr) && (i<code); i++)
       *dst++ = *ptr++;
       
     if (code < 0xFF)
@@ -433,37 +433,12 @@ void StuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
     ptr++;
   }
 
-  FinishBlock(code);
+  *dst = 0;
+  FinishBlock(code);  
 }
 
-// *********************************************************
-//   Execute Reset
-// *********************************************************
 
-bool executeReset(uint8_t pin)
-{
-  digitalWrite(LEDPIN, (pin>0) ? HIGH:LOW);
-  return true;
-}
 
-// *********************************************************
-//   Execute Read Register
-// *********************************************************
-
-uint8_t executeReadRegister(uint8_t APnDP, uint8_t address, uint32_t &data)
-{
-  
-  return g_interface.doReadTransaction(APnDP, address, data);
-}
-
-// *********************************************************
-//   Execute Write Register
-// *********************************************************
-
-bool executeWriteRegister(uint8_t APnDP, uint8_t address, uint32_t &data)
-{
-  return true;
-}
 
 // *********************************************************
 //   Send reply
@@ -492,6 +467,9 @@ void setup()
   Serial.begin(19200);
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
+
+  g_interface = new ArduinoSWDInterface();
+  g_interface->initPins();
 }
 
 void loop() 
@@ -505,6 +483,7 @@ void loop()
     uint8_t byteRead = Serial.read();
     if (byteRead == 0)
     {
+      digitalWrite(13, HIGH);      
       //decode COBS packet
       if (g_idx < sizeof(g_rxbuffer))
       {
@@ -519,18 +498,19 @@ void loop()
         {
           default:
           case TXCMD_TYPE_UNKNOWN:
-            reply(RXCMD_STATUS_FAIL, SWDCODE_FAIL, 0x01010101);
+            reply(RXCMD_STATUS_OK, SWDCODE_FAIL, cmd->cmdType);
             break;
           case TXCMD_TYPE_RESETPIN:
-            // as of yet unsupported
-            reply(RXCMD_STATUS_OK, SWDCODE_ACK, 0x01010101);
+            // as of yet unsupported but misuse it to do a line reset / connect
+            swdcode = g_interface->doConnect(data);
+            reply(RXCMD_STATUS_OK, SWDCODE_ACK, data);
             break;
           case TXCMD_TYPE_READREG:
-            swdcode = g_interface.doReadTransaction(cmd->APnDP > 0, cmd->address, data);
+            swdcode = g_interface->doReadTransaction(cmd->APnDP > 0, cmd->address, data);
             reply(RXCMD_STATUS_OK, swdcode, data);
             break;
           case TXCMD_TYPE_WRITEREG:
-            swdcode = g_interface.doWriteTransaction(cmd->APnDP > 0, cmd->address, cmd->data);
+            swdcode = g_interface->doWriteTransaction(cmd->APnDP > 0, cmd->address, cmd->data);
             reply(RXCMD_STATUS_OK, swdcode, cmd->data);
             break;
           case TXCMD_TYPE_GETPROGID:
@@ -543,16 +523,13 @@ void loop()
     }
     else
     {
-      if (g_idx < sizeof(g_rxbuffer))
+      if (g_idx >= sizeof(g_rxbuffer))
       {
-        g_rxbuffer[g_idx++] = byteRead;
+        //FIXME: better handling of buffer overruns ?
+        g_idx = 0; // avoid buffer overrun
       }
-      else
-      {
-        // avoid buffer overrun :-(
-        // TODO: send error packet
-        g_idx = 0; 
-      }
+
+      g_rxbuffer[g_idx++] = byteRead;
     }
   }
 }
