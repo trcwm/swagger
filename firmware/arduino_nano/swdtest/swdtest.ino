@@ -250,6 +250,10 @@ void setup()
     unlockSWD();
     SWDIdle();  
     delayMicroseconds(200000);  
+
+    //SWDTransaction(bool APnDP, bool RnW, uint8_t A23, uint32_t data)
+    SWDTransaction(false, false, 1, 0x50000000);
+    Serial.print(SWDTransaction(false, true, 1, 0), HEX);
   }
 
   /*
@@ -260,7 +264,7 @@ void setup()
     delayMicroseconds(500000);
   };
   */
-  //SWDTransaction(false, false, 1, CSYSPWRUPREQ | CDBGRSTREQ);
+  //
 }
 
 void loop() 

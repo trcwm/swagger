@@ -250,7 +250,7 @@ uint8_t SWDInterfaceBase::doReadTransaction(bool APnDP, uint8_t address, uint32_
   {
     data >>= 1;
     if (readBit())
-      data |= 0x8000000;
+      data |= 0x80000000;
   }
 
   parity = readBit();
@@ -276,9 +276,9 @@ uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32
 
   writeBit(true);       // start bit
   writeBit(APnDP);    
-  writeBit(true);       // read operation
+  writeBit(false);      // write operation
   writeBit( (address & 0x01) > 0);
-  writeBit( (address& 0x02) > 0);
+  writeBit( (address & 0x02) > 0);
   writeBit(parity);
   writeBit(false);      // stop bit
   writeBit(true);       // park bit
