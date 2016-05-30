@@ -164,7 +164,7 @@ SQInteger targetConnect(HSQUIRRELVM v)
     sq_pushinteger(v, idcode);
     sq_newslot(v, -3, SQFalse);
 
-    printf("Connect called");
+    printf("Connected to target with ID: %08X\n", idcode);
 
     return 1;   //return one item (table)
 }
@@ -202,8 +202,8 @@ SQInteger doReadTransaction(HSQUIRRELVM v)
         return 0;
     }
 
-    printf("APnDP  : %d\n", APnDP);
-    printf("Address: %08X\n", address);
+    //printf("APnDP  : %d\n", APnDP);
+   // printf("Address: %08X\n", address);
 
     uint32_t my_data;
     HWResult result = g_interface->readRegister((APnDP > 0), address, my_data);
@@ -219,7 +219,7 @@ SQInteger doReadTransaction(HSQUIRRELVM v)
     sq_pushinteger(v, my_data);
     sq_newslot(v, -3, SQFalse);
 
-    printf("Data: %08X\n", my_data);
+    //printf("RX Data: %08X\n", my_data);
 
     return 1;   //return one item (table)
 }
@@ -242,7 +242,7 @@ SQInteger doWriteTransaction(HSQUIRRELVM v)
         return 0;
     }
 
-    printf("doWriteTransaction %d\n", nargs);
+    //printf("doWriteTransaction %d\n", nargs);
 
     if (nargs != 4)
         return 0;   // no arguments returned;
@@ -264,13 +264,19 @@ SQInteger doWriteTransaction(HSQUIRRELVM v)
         return 0;
     }
 
-    printf("APnDP  : %d\n", APnDP);
-    printf("Address: %08X\n", address);
-    printf("data   : %08X\n", data);
+    //printf("APnDP  : %d\n", APnDP);
+    //printf("Address: %08X\n", address);
+    //printf("data   : %08X\n", data);
 
     HWResult result = g_interface->writeRegister((APnDP > 0), address, data);
 
+    // create a table as a return argument
+    sq_newtable(v);
+
+    sq_pushstring(v, _SC("swdcode"), -1);
     sq_pushinteger(v, result);
+    sq_newslot(v, -3, SQFalse);
+
     return 1;   //return one item (table)
 }
 
@@ -446,7 +452,6 @@ void Interactive(HSQUIRRELVM v)
                     scprintf(_SC("\n"));
                 }
             }
-
             sq_settop(v,oldtop);
         }
     }

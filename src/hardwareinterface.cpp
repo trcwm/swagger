@@ -35,7 +35,7 @@ HardwareInterface::~HardwareInterface()
 
 HardwareInterface::HardwareInterface(const char *comport, uint32_t baudrate) : m_timeout(1000)
 {
-    m_debug = true;
+    m_debug = false;
     switch(baudrate)
     {
     case 1200:

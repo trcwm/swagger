@@ -221,6 +221,24 @@ uint8_t SWDInterfaceBase::doConnect(uint32_t &idcode)
 
 uint8_t SWDInterfaceBase::doReadTransaction(bool APnDP, uint8_t address, uint32_t &data)
 {
+  /*
+   * 
+   *  Read transaction:
+   * 
+   *  1) write zero bit (to allow for start bit detection.
+   *  2) write start bit (1)
+   *  3) Access Port (1) or Debug port (0) bit
+   *  4) '1' for read operation
+   *  5) even parity bit
+   *  6) stop bit (0)
+   *  7) park bit (1)
+   *  8) read SWD response code
+   *  9) if ok (001) then proceed
+   *     otherwise perform turn-around, line idle and exit
+   *  10) read 32 bit, LSB first
+   *  11) turn-around
+   *  12) line idle
+   */
   configDataPin(true);  // output
   writeBit(false);      // start with a zero bit
 
@@ -242,7 +260,10 @@ uint8_t SWDInterfaceBase::doReadTransaction(bool APnDP, uint8_t address, uint32_
 
   if (swdcode != 1)     // SWD OK!
   {
-    return swdcode; // error!
+    // turn-around
+    configDataPin(true);
+    writeBit(false);     
+    return swdcode;
   }
 
   data = 0;
@@ -258,17 +279,41 @@ uint8_t SWDInterfaceBase::doReadTransaction(bool APnDP, uint8_t address, uint32_
   {
     //FIXME: what to do?
     // error, parity check fails!
+    // for now, return a fail
+    swdcode = 4;
   }
 
   // turn-around
   configDataPin(true);
   writeBit(false);      
+
+  // line idle so the SWD subsystem can process the transaction
+  lineIdle();
   
   return swdcode; // everything OK!
 }
 
 uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32_t data)
 {
+  /*
+   * 
+   *  Write transaction:
+   * 
+   *  1) write zero bit (to allow for start bit detection.
+   *  2) write start bit (1)
+   *  3) Access Port (1) or Debug port (0) bit
+   *  4) '0' for write operation
+   *  5) even parity bit
+   *  6) stop bit (0)
+   *  7) park bit (1)
+   *  8) read SWD response code
+   *  9) if ok (001) then proceed
+   *     otherwise perform turn-around, line idle and exit
+   *  10) turn-around
+   *  11) write 32 bit, LSB first
+   *  12) write parity bit
+   *  12b) line idle
+   */  
   configDataPin(true);  // output
   writeBit(false);      // start with a zero bit
 
@@ -288,21 +333,23 @@ uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32
 
   uint8_t swdcode = readAck();
 
+  // turn around
+  configDataPin(true);  // output
+  readBit();
+
   if (swdcode != 1)     // SWD OK!
   {
+   
+    lineIdle();
     return swdcode; // error!
   }
-
-  configDataPin(true);  // output
-  readBit();            // turn-around
 
   writeWord32(data);
 
   writeBit(calcParity(data));
 
-  // turn-around
-  configDataPin(true);
-  writeBit(false);      
+  // line idle so the SWD subsystem can process the transaction
+  lineIdle();
   
   return swdcode; // everything OK!
 }
@@ -503,7 +550,6 @@ void loop()
             break;
           case TXCMD_TYPE_RESETPIN:
             // as of yet unsupported
-            //swdcode = g_interface->doConnect(data);
             reply(RXCMD_STATUS_OK, SWDCODE_ACK, 0);
             break;
           case TXCMD_TYPE_CONNECT:

@@ -24,9 +24,14 @@
 // global variables
 // *************************************
 
-debug <- 1;         // set the debug level
+debug <- 3;         // set the debug level
 targets <- [];      // create an empty targets array
 targetIDx <- -1;    // current target in use, -1 if none selected
+
+// SWD return codes
+SWD_OK <- 1
+SWD_WAIT <- 2
+SWD_FAULT <- 4
 
 // *************************************
 // Target baseclass
@@ -40,6 +45,8 @@ class TargetBase
     constructor()
     {
         // set name and idcode in the derived class
+        name = "";
+        idcode = 0;        
     }
      
     // override this in your derived class
@@ -48,6 +55,31 @@ class TargetBase
     // override this in your derived class    
     function upload(filename) {}
 
+    // check if the target is indeed
+    // the one that is expected
+    // return 0 if ok, else -1.
+    // override this in your derived class
+    function check()
+    {
+        return -1;
+    }    
+    
+    // halt the target
+    // return 0 if ok, else -1.
+    function halt()
+    {
+        return -1;
+    }
+    
+    // reset the target
+    // state is either true(1)
+    // or false(0).
+    // return 0 if ok, else -1.
+    function reset(state)
+    {
+        return -1;
+    }
+    
     function getName()
     {
         return name;
@@ -57,6 +89,8 @@ class TargetBase
     {
         return idcode;
     }
+    
+
 }
 
 // *************************************
@@ -81,7 +115,7 @@ try
     dofile("..\\targets\\utils.nut");
     dofile("..\\targets\\nxp\\mkv10z.nut");
     dofile("..\\targets\\nxp\\lpc13.nut");
-    print("targets loaded!");
+    print("targets loaded!\n");
 }
 catch(error)
 {
