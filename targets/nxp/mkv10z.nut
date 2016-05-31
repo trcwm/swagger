@@ -114,26 +114,69 @@ class TargetKV10Z extends TargetBase
         
         return 0;
     }
+
+    function readCoreRegister(regID)
+    {
+        // NOTE: system must be in debug mode!
+        // first request a register read
+        // then read it!
+        writeMemory(SCS_DCRSR, regID);        
+        return readMemory(SCS_DCRDR);
+    }
     
+    function writeCoreRegister(regID, value)
+    {
+        // NOTE: system must be in debug mode!
+        // first write the register value
+        // then request a register write
+        writeMemory(SCS_DCRDR, value);        
+        return writeMemory(SCS_DCRSR, (regID & 0x1F) | DCRSR_WRITE);
+    }    
+    
+    function showRegisters()
+    {
+        // check for halt
+        local retval = readAP(MDM_AP_STAT);
+        if (retval.data & MDM_STAT_COREHALTED)
+        {
+            // yes, halted
+            for(local i=0; i<16; i+=1)
+            {
+                print(format("r%d = %08X\n", i, readCoreRegister(i).data));
+            }
+        }
+        else
+        {
+            logmsg(LOG_ERROR, "Error: core not halted\n");
+        }
+    }
+    
+    function rresume()
+    {
+        // check for halt
+        local retval = readAP(MDM_AP_STAT);
+        if (retval.data & MDM_STAT_COREHALTED)
+        {
+            writeAP(MDM_AP_CTRL, 0);
+            writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_MASKINTS)    
+            logmsg(LOG_DEBUG, "Resuming..");
+        }
+        else
+        {
+            logmsg(LOG_WARNING, "Can't resume: core not halted");
+        }
+    }
+
     function halt()
     {
         // enable power to the debug system / core
         enableDebugPower();
         
-        
         // setup debug mode through SCS
         writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
-        
-        local retval = writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_DEBUGREQ | MDM_CTRL_COREHOLD);
-        if (retval.swdcode != SWD_OK)
-        {
-            logmsg(LOG_ERROR, "Entering debug mode failed (SWD not OK)\n");
-            return -1;
-        }
-         
-        
+                         
         // release the system reset and enter debug mode
-        retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
+        local retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
         if (retval.swdcode != SWD_OK)
         {
             logmsg(LOG_ERROR, "Reset release failed (SWD not OK)\n");
@@ -149,7 +192,8 @@ class TargetKV10Z extends TargetBase
         }
         if (retval.data & MDM_STAT_COREHALTED)
         {
-            logmsg(LOG_DEBUG, "Entered debug mode!\n");
+            logmsg(LOG_DEBUG, "Entered debug mode - core halted!\n");
+            logmsg(LOG_DEBUG, format("PC = %08X\n", readCoreRegister(15).data));
         }
         else
         {
@@ -159,7 +203,7 @@ class TargetKV10Z extends TargetBase
         
         return 0;  // OK!
     }
-    
+
     // check the state of target reset
     function isReset()
     {
@@ -211,25 +255,7 @@ class TargetKV10Z extends TargetBase
         }
         return -1;
     }
-    
-    function readCoreRegister(regID)
-    {
-        // NOTE: system must be in debug mode!
-        // first request a register read
-        // then read it!
-        writeMemory(SCS_DCRSR, regID);        
-        return readMemory(SCS_DCRDR);
-    }
-    
-    function writeCoreRegister(regID, value)
-    {
-        // NOTE: system must be in debug mode!
-        // first write the register value
-        // then request a register write
-        writeMemory(SCS_DCRDR, value);        
-        return writeMemory(SCS_DCRSR, (regID & 0x1F) | DCRSR_WRITE);
-    }
-    
+        
     function pollMemory(address, mask)
     {
         local retries = 0;
@@ -275,7 +301,7 @@ class TargetKV10Z extends TargetBase
         return -1;
     }    
     
-    function flasherase2()
+    function securedErase()
     {
         if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).swdcode != SWD_OK)
         {
@@ -426,6 +452,7 @@ class TargetKV10Z extends TargetBase
         return 0;   // ok
     }
     
+    
     function flash_program_longword(address, data)
     {
         // assumptions: we're in debug mode
@@ -480,17 +507,7 @@ class TargetKV10Z extends TargetBase
         local myfile = file("board_init.bin","rb");   
         local myblob = myfile.readblob(myfile.len());        
         print(format("Binary data is %d bytes\n", myblob.len()));
-        
-        //writeMemory(MCM_PLACR, PLACR_ESFC); // enable flash controller stalling
-       
-        /*
-        if (writeMemory(SIM_SCGC6, SCGC6_FTF).swdcode != SWD_OK)
-        {
-            logmsg(LOG_ERROR, "Could not set the FTF clock gating bit (SWD)\n");
-            return -1;
-        }
-        */
-        
+                
         local idx = 0;
         while(idx < myblob.len())
         {
