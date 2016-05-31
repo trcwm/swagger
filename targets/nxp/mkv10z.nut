@@ -56,6 +56,27 @@ const DCRSR_REG_PSRFLAG = 0x10;
 const DCRSR_REG_MSP     = 0x11;
 const DCRSR_REG_PSP     = 0x12;
 
+const SIM_FCFG1         = 0x4004804C;       // flash configuration reg 1
+const SIM_FCFG2         = 0x40048050;       // flash configuration reg 2
+
+const SIM_SCGC6         = 0x4004803C;       // clock config reg 6
+const SCGC6_FTF         = 0x1;              // flash clock gating bit
+
+const FTFA_FSTAT        = 0x40020000;       // flash status register (8 bits!)
+const FTFA_FCNFG        = 0x40020001;       // flash config register (8 bits!)
+const FTFA_FSEC         = 0x40020002;
+const FTFA_FOPT         = 0x40020003;
+const FTFA_FCCOB_BASE   = 0x40020004;
+const FTFA_PROTADDR     = 0x0408;          // flash protection bits
+
+const FSTAT_CCIF        = 0x80;
+const FSTAT_RDCOLERR    = 0x40;
+const FSTAT_ACCERR      = 0x20;
+const FSTAT_FPVIOL      = 0x10;
+const FSTAT_MGSTAT0     = 0x01;
+
+const MCM_PLACR         = 0xF000300C;       // Platform Control Register
+const PLACR_ESFC        = 0x00010000;       // flash stall enable_n
 
 class TargetKV10Z extends TargetBase
 {
@@ -89,15 +110,54 @@ class TargetKV10Z extends TargetBase
         else
         {
             logmsg(LOG_DEBUG, "MDM-AP ID OK\n");
-        }        
+        }
+        
         return 0;
     }
     
     function halt()
     {
-        // halt the target
-        logmsg(LOG_ERROR, "Halt is not implemented");
-        return -1;  // error
+        // enable power to the debug system / core
+        enableDebugPower();
+        
+        
+        // setup debug mode through SCS
+        writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
+        
+        local retval = writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_DEBUGREQ | MDM_CTRL_COREHOLD);
+        if (retval.swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Entering debug mode failed (SWD not OK)\n");
+            return -1;
+        }
+         
+        
+        // release the system reset and enter debug mode
+        retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
+        if (retval.swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Reset release failed (SWD not OK)\n");
+            return -1;
+        }
+        
+        // check if we've entered debug mode
+        retval = readAP(MDM_AP_STAT);
+        if (retval.swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Checking for debug mode failed (SWD not OK)\n");
+            return -1;
+        }
+        if (retval.data & MDM_STAT_COREHALTED)
+        {
+            logmsg(LOG_DEBUG, "Entered debug mode!\n");
+        }
+        else
+        {
+            logmsg(LOG_ERROR, "Entering debug mode failed - core not halted\n");
+            return -1;
+        }        
+        
+        return 0;  // OK!
     }
     
     // check the state of target reset
@@ -170,6 +230,71 @@ class TargetKV10Z extends TargetBase
         return writeMemory(SCS_DCRSR, (regID & 0x1F) | DCRSR_WRITE);
     }
     
+    function pollMemory(address, mask)
+    {
+        local retries = 0;
+        while(retries < MAX_RETRIES)
+        {
+            local retval = readMemory(address);
+            if ((retval.data & mask) == mask)
+            {
+                return 0;   // OK
+            }
+            retries++;
+        }
+        return -1;
+    }
+    
+    function pollAP(address, mask)
+    {   
+        local retries = 0;
+        while(retries < MAX_RETRIES)
+        {
+            local retval = readAP(address);
+            if ((retval.data & mask) == mask)
+            {
+                return 0;   // OK
+            }
+            retries++;
+        }
+        return -1;
+    }
+    
+    function pollAP_not(address, mask)
+    {   
+        local retries = 0;
+        while(retries < MAX_RETRIES)
+        {
+            local retval = readAP(address);
+            if ((retval.data & mask) != mask)
+            {
+                return 0;   // OK
+            }
+            retries++;
+        }
+        return -1;
+    }    
+    
+    function flasherase2()
+    {
+        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Mass erase trigger failed (SWD)\n");
+            return -1;
+        }
+                
+        // read flash erase in-progress until it clears!
+        if (pollAP_not(MDM_AP_CTRL, MDM_CTRL_FLASHERASE) == 0)
+        {
+            print("Flash mass erase successful!\n");
+        }
+        else
+        {
+            logmsg(LOG_ERROR, "Error: flash mass erase time-out!\n");
+            return -1;
+        }   
+    }
+    
     function flasherase()
     {
         logmsg(LOG_DEBUG, "Attempting to erase the flash!\n");
@@ -186,24 +311,34 @@ class TargetKV10Z extends TargetBase
             return -1;
         }
         
-        // check for flash ready bit
-        local retval = readAP(MDM_AP_STAT);
-        if (retval.swdcode != SWD_OK)
+        if (halt() != 0)
         {
-            logmsg(LOG_ERROR, "Checking for flash failed (SWD not OK)\n");
+            //return -1;
+        }
+        
+        // make sure the flash has a clock
+        if (writeMemory(SIM_SCGC6, SCGC6_FTF).swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Could not set the FTF clock gating bit (SWD)\n");
             return -1;
         }
-        if (retval.data & MDM_STAT_FLASHREADY)
-        {
-            logmsg(LOG_DEBUG, "Flash is ready.\n");
-        }
-        else
+                
+        // check for flash ready bit
+        if (pollAP(MDM_AP_STAT, MDM_STAT_FLASHREADY) != 0)
         {
             logmsg(LOG_ERROR, "Flash is not ready!\n");
             return -1;
         }
+        else
+        {
+            logmsg(LOG_DEBUG, "Flash is ready!\n");
+        }
+        
+        // read the flash protection bits
+        //local retval = readMemory(FTF_PROTADDR);
         
         // check system security
+        local retval = readAP(MDM_AP_STAT);
         if (retval.data & MDM_STAT_SYSSECURITY)
         {
             //logmsg(LOG_DEBUG, "Part is secured - using mass erase\n");
@@ -214,45 +349,202 @@ class TargetKV10Z extends TargetBase
         {
             logmsg(LOG_DEBUG, "Part is unsecured - full access available\n");
         }
+                    
+        //print(format("SCS_DHCSR = %08X\n", readMemory(SCS_DHCSR).data));
         
-        // setup debug mode through SCS
-        writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);        
-        
-        retval = writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_DEBUGREQ | MDM_CTRL_COREHOLD);
+        // get the size of the flash
+        retval = readMemory(SIM_FCFG1);
         if (retval.swdcode != SWD_OK)
         {
-            logmsg(LOG_ERROR, "Entering debug mode failed (SWD not OK)\n");
+            logmsg(LOG_ERROR, "Checking reading SIM_FCFG1 (SWD not OK)\n");
             return -1;
         }
         
-        // release the system reset and enter debug mode
-        retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
-        if (retval.swdcode != SWD_OK)
-        {
-            logmsg(LOG_ERROR, "Reset release failed (SWD not OK)\n");
-            return -1;
-        }
+        // program size in KB
+        local psize_tbl = array(16, -1);    // program size array
+        psize_tbl[0] = 8;
+        psize_tbl[1] = 16;
+        psize_tbl[3] = 32;
+        psize_tbl[5] = 64;
+        psize_tbl[7] = 128;
+        psize_tbl[9] = 256;
+        psize_tbl[15] = 32;
         
-        // check if we've entered debug mode
-        retval = readAP(MDM_AP_STAT);
-        if (retval.swdcode != SWD_OK)
+        // sector size in bytes
+        local secsize_tbl = array(16,-1);
+        secsize_tbl[0] = 256;
+        secsize_tbl[1] = 512;
+        secsize_tbl[3] = 1024;
+        secsize_tbl[5] = 2048;
+        secsize_tbl[7] = 4096;
+        secsize_tbl[9] = 4096;
+        secsize_tbl[15] = 1024;
+        
+        local psize = psize_tbl[(retval.data >> 24) & 0x0F];
+        local secsize = secsize_tbl[(retval.data >> 24) & 0x0F];
+        
+        logmsg(LOG_DEBUG, format("FLash = %d KB  Sector = %d Bytes\n", psize, secsize));
+        
+        if ((psize != 32) || (secsize != 1024))
         {
-            logmsg(LOG_ERROR, "Checking for debug mode failed (SWD not OK)\n");
+            logmsg(LOG_ERROR, "Wrong flash memory size - only the MKV10Z32 is supported!\n"); 
             return -1;
-        }
-        if (retval.data & MDM_STAT_COREHALTED)
-        {
-            logmsg(LOG_DEBUG, "Entered debug mode!\n");
         }
         else
         {
-            logmsg(LOG_ERROR, "Entering debug mode failed - core not halted\n");
+            logmsg(LOG_DEBUG, "Flash memory size OK!\n"); 
+        }
+        
+        // check if flash enabled!
+        if ((retval.data & 1) == 1)
+        {
+            logmsg(LOG_ERROR, "Flash is disabled!\n"); 
             return -1;
         }
         
-        print(format("SCS_DHCSR = %08X\n", readMemory(SCS_DHCSR).data));
+        // ************************************************************
+        //   ERASING FLASH
+        // ************************************************************
+        
+        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Mass erase trigger failed (SWD)\n");
+            return -1;
+        }
+                
+        // read flash erase in-progress until it clears!
+        if (pollAP_not(MDM_AP_CTRL, MDM_CTRL_FLASHERASE) == 0)
+        {
+            print("Flash mass erase successful!\n");
+        }
+        else
+        {
+            logmsg(LOG_ERROR, "Error: flash mass erase time-out!\n");
+            return -1;
+        }
+        
+        return 0;   // ok
     }
     
+    function flash_program_longword(address, data)
+    {
+        // assumptions: we're in debug mode
+        // and flash is ready and erased!
+        
+        // clear error flags
+        writeMemory(FTFA_FSTAT, 0xFFFE0000 | FSTAT_RDCOLERR | FSTAT_ACCERR | FSTAT_FPVIOL);
+        
+        // wait for the previous command to finish
+        // if there was any
+        pollMemory(FTFA_FSTAT, FSTAT_CCIF);
+        
+        writeMemory(FTFA_FCCOB_BASE, 0x06000000 | (address & 0x00FFFFFF));
+        writeMemory(FTFA_FCCOB_BASE+4, data);
+        
+        // trigger command! 
+        writeMemory(FTFA_FSTAT, 0xFFFE0000 | FSTAT_CCIF);    // trigger command
+        
+        if (pollMemory(FTFA_FSTAT, FSTAT_CCIF) == 0)
+        {
+            logmsg(LOG_DEBUG, format("%08X <- %08X ok\n", address, data));
+        }
+        
+        // report errors
+        local retval = readMemory(FTFA_FSTAT);
+        if (retval.data & FSTAT_MGSTAT0)
+        {
+            logmsg(LOG_ERROR, "Command executing error!\n");
+            // Note: do not return.
+        }
+        if (retval.data & FSTAT_RDCOLERR)
+        {
+            logmsg(LOG_ERROR, "Flash read/write collison!\n");
+            return -1;
+        }
+        if (retval.data & FSTAT_ACCERR)
+        {
+            logmsg(LOG_ERROR, "Flash access error!\n");
+            return -1;
+        }
+        if (retval.data & FSTAT_FPVIOL)
+        {
+            logmsg(LOG_ERROR, "Flash violation!\n");
+            return -1;            
+        }
+        
+        return 0;
+    }
+    
+    function flash_program()
+    {
+        local myfile = file("board_init.bin","rb");   
+        local myblob = myfile.readblob(myfile.len());        
+        print(format("Binary data is %d bytes\n", myblob.len()));
+        
+        //writeMemory(MCM_PLACR, PLACR_ESFC); // enable flash controller stalling
+       
+        /*
+        if (writeMemory(SIM_SCGC6, SCGC6_FTF).swdcode != SWD_OK)
+        {
+            logmsg(LOG_ERROR, "Could not set the FTF clock gating bit (SWD)\n");
+            return -1;
+        }
+        */
+        
+        local idx = 0;
+        while(idx < myblob.len())
+        {
+            local word = myblob.readn('i');
+            print(format("(%08X) <- %08X\n", idx, word));
+            
+            // program the flash but skip
+            // the all-set word, as the erased flash
+            // has these bits set already -> faster programming
+            if (word != 0xFFFFFFFF)
+            {
+                if (flash_program_longword(idx, word) != 0)
+                {
+                    logmsg(LOG_ERROR,"Flashing failed :-@\n");
+                    return -1;
+                }
+            }
+            idx += 4;
+        }
+        
+        myfile.close();
+    }
+    
+    function ftest()
+    {
+        local myfile = file("stubby.bin","rb");   
+        local myblob = myfile.readblob(myfile.len());        
+        print(format("Binary data is %d bytes\n", myblob.len()));
+                
+        local idx = 0;
+        local addr = 0x20000000
+        while(idx < myblob.len())
+        {
+            local word = myblob.readn('i');            
+            writeMemory(addr, word);
+            print(format("(%08X) <- %08X\n", addr, word));
+            idx += 4;
+            addr+= 4;
+        }
+        myfile.close();
+        writeCoreRegister(DCRSR_REG_DBGRET, 0x20000000);    // set PC to RAM
+        print(format("PC = %08X\n", readCoreRegister(DCRSR_REG_DBGRET).data))
+        writeAP(MDM_AP_CTRL, 0);    // release halt
+        writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_MASKINTS)
+        
+        local retval = readAP(MDM_AP_STAT);
+
+        if (retval.data & MDM_STAT_COREHALTED)
+        {
+            print("Core still halted.. \n");
+        }
+        //  retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
+        //   writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_HALT | C_DEBUGEN | C_MASKINTS)        
+    }
 }
 
 // create a target object
@@ -260,3 +552,4 @@ kv10ztarget <- TargetKV10Z();
 
 // register the target
 registerTarget(::kv10ztarget);
+

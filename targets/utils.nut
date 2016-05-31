@@ -151,7 +151,7 @@ function readstat()
 function writestat(data)
 {    
     local retval = writeDP(DP_CTRLSTAT,data);
-    
+        
     // retry if we get a WAIT response
     local retries = 0;
     while(retval.swdcode == SWD_WAIT)
@@ -160,11 +160,12 @@ function writestat(data)
         retries++;
         if (retries > MAX_RETRIES)
         {
+            logmsb(LOG_ERROR, "writestat() timed out\n");
             return retval;
         }
         retval = writeDP(DP_CTRLSTAT,data);
     }
-
+    
     if (retval.swdcode == SWD_FAULT)
         logmsg(LOG_ERROR, "writestat() reports a failure\n");
     
@@ -176,12 +177,20 @@ function writestat(data)
 // *********************************************************
 
 
-function enableDebug()
+function enableDebugPower()
 {
+    // check if debug power is already enabled
+    //local retval = readDP(DP_CTRLSTAT);
+    //if ((retval.data & 0xF0000000) == 0xF0000000)
+    //{
+    //    return retval;
+    //}
+    
     local retval = writestat(0x50000000);  // enable power to DEBUG and system
     
     // wait for confirmation
     retval = readDP(DP_CTRLSTAT);
+    
     
     while((retval.data & 0xF0000000) != 0xF0000000)
     {
@@ -192,15 +201,16 @@ function enableDebug()
     switch(retval.swdcode)
     {
     case SWD_FAULT:
-        logmsg(LOG_ERROR, "enableDebug() returned FAIL\n");
+        logmsg(LOG_ERROR, "enableDebugPower() returned FAIL\n");
         break;
     case SWD_WAIT:
-        logmsg(LOG_DEBUG, "time-out waiting for debug confirmation\n");
+        logmsg(LOG_DEBUG, "Time-out waiting for debug power confirmation\n");
+        break;
     case SWD_OK:
-        logmsg(LOG_DEBUG, "debugging enabled");
+        logmsg(LOG_DEBUG, "Debug power enabled\n");
         break;
     default:
-        logmsg(LOG_ERROR, "unrecognized SWD return code\n");
+        logmsg(LOG_ERROR, "Unrecognized SWD return code\n");
         break;
     }
     return retval;
@@ -293,5 +303,5 @@ function init()
     clearStickyErrors();
     writeDP(DP_SELECT,0);
     ::g_AP_SELECT_CACHE = 0;
-    enableDebug();
+    enableDebugPower();
 }

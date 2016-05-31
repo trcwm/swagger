@@ -1,3 +1,4 @@
+
 /*
  *  SWD interface code for Arduino Nano
  * 
@@ -16,7 +17,7 @@
 
 #include <protocol.h>
 
-#define SWDDELAY_us 1000
+#define SWDDELAY_us 20
 #define LEDPIN 13
 #define SWDDAT_PIN 2
 #define SWDCLK_PIN 3
