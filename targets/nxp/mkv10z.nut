@@ -55,6 +55,8 @@ const DCRSR_REG_DBGRET  = 0x0F;
 const DCRSR_REG_PSRFLAG = 0x10;
 const DCRSR_REG_MSP     = 0x11;
 const DCRSR_REG_PSP     = 0x12;
+const DCRSR_REG_IPSR    = 0x17;
+const DCRSR_REG_CONTROL = 0x1B;
 
 const SIM_FCFG1         = 0x4004804C;       // flash configuration reg 1
 const SIM_FCFG2         = 0x40048050;       // flash configuration reg 2
@@ -193,7 +195,9 @@ class TargetKV10Z extends TargetBase
         if (retval.data & MDM_STAT_COREHALTED)
         {
             logmsg(LOG_DEBUG, "Entered debug mode - core halted!\n");
-            logmsg(LOG_DEBUG, format("PC = %08X\n", readCoreRegister(15).data));
+            logmsg(LOG_DEBUG, format("PC  = %08X\n", readCoreRegister(15).data));
+            logmsg(LOG_DEBUG, format("MSP = %08X\n", readCoreRegister(DCRSR_REG_MSP).data));
+            
         }
         else
         {
@@ -448,6 +452,10 @@ class TargetKV10Z extends TargetBase
             logmsg(LOG_ERROR, "Error: flash mass erase time-out!\n");
             return -1;
         }
+        
+        // reset part
+        reset(1);
+        reset(0);
         
         return 0;   // ok
     }
