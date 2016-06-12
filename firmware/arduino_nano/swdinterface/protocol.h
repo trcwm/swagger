@@ -52,7 +52,12 @@
 #define RXCMD_STATUS_UNKNOWN    0   // unintialized structure
 #define RXCMD_STATUS_OK         1   // command processed OK
 #define RXCMD_STATUS_FAIL       2   // command failed
-#define RXCMD_PROTOCOL_ERROR    99
+
+// SWD status code, as defined by the ARM standard
+#define SWDCODE_ACK  1
+#define SWDCODE_WAIT 2
+#define SWDCODE_FAIL 4
+
 
 #pragma pack(push,1)
 

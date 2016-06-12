@@ -86,7 +86,6 @@ HWResult HardwareInterface::connect(uint32_t &idcode)
     HardwareTXCommand txcmd;
     txcmd.cmdType = TXCMD_TYPE_CONNECT;
     txcmd.data    = 0x01010101;
-    txcmd.APnDP   = 0x01;     // Not used but more efficient after COBS encoding if != 0
     txcmd.address = 0x01;     // Not used but more efficient after COBS encoding if != 0
 
     idcode = 0;
@@ -94,42 +93,36 @@ HWResult HardwareInterface::connect(uint32_t &idcode)
     if (!isOpen())
     {
         m_lastError = "COM port not open";
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
 
     // send the packet
-    std::vector<uint8_t> buffer;
-    buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
-    if (!writePacket(buffer))
+    if (!writePacket(&txcmd, sizeof(txcmd)))
     {
         printf("%s\n", getLastError().c_str());
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
 
     // receive status packet
+    std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
         printf("%s\n", getLastError().c_str());
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
     else
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            return INT_ERROR;
+            return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
-        if (rxcmd->status != RXCMD_STATUS_OK)
-        {
-            m_lastError = "Protocol error";
-            return INT_ERROR;
-        }
 
         idcode = rxcmd->data;
-        return rxcmd->swdcode;
+        return rxcmd->status;
     }
-    return INT_ERROR;
+    return RXCMD_PROTOCOL_ERROR;
 }
 
 bool HardwareInterface::setTargetReset(bool reset)
@@ -137,7 +130,6 @@ bool HardwareInterface::setTargetReset(bool reset)
     HardwareTXCommand txcmd;
     txcmd.cmdType = TXCMD_TYPE_RESETPIN;
     txcmd.data    = reset ? 1:0;
-    txcmd.APnDP   = 0x01;     // Not used but more efficient after COBS encoding if != 0
     txcmd.address = 0x01;     // Not used but more efficient after COBS encoding if != 0
 
     if (!isOpen())
@@ -147,15 +139,14 @@ bool HardwareInterface::setTargetReset(bool reset)
     }
 
     // send the packet
-    std::vector<uint8_t> buffer;
-    buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
-    if (!writePacket(buffer))
+    if (!writePacket(&txcmd, sizeof(txcmd)))
     {
         printf("%s\n", getLastError().c_str());
         return false;
     }
 
     // receive status packet
+    std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
         printf("%s\n", getLastError().c_str());
@@ -175,12 +166,12 @@ bool HardwareInterface::setTargetReset(bool reset)
             return false;
         }
 
-        printf("%d IDCODE = %08X\n", rxcmd->swdcode, rxcmd->data);
+        printf("%d IDCODE = %08X\n", rxcmd->status, rxcmd->data);
     }
     return true;
 }
 
-bool HardwareInterface::writePacket(const std::vector<uint8_t> &data)
+bool HardwareInterface::writePacket(const void* data, size_t bytes)
 {
     if (!isOpen())
     {
@@ -188,9 +179,13 @@ bool HardwareInterface::writePacket(const std::vector<uint8_t> &data)
         return false;
     }
 
+    // make std::vector buffer
+    std::vector<uint8_t> databuf;
+    databuf.insert(databuf.begin(), (const uint8_t*)data, ((const uint8_t*)data) + bytes);
+
     // do COBS encoding
     std::vector<uint8_t> cobsbuffer;
-    if (COBS::encode(data, cobsbuffer))
+    if (COBS::encode(databuf, cobsbuffer))
     {
         if (m_debug)
         {
@@ -280,83 +275,67 @@ bool HardwareInterface::readPacket(std::vector<uint8_t> &data)
     return true;
 }
 
-HWResult HardwareInterface::writeRegister(bool APnDP, uint32_t address, uint32_t data)
+HWResult HardwareInterface::writeDP(uint32_t address, uint32_t data)
 {
     HardwareTXCommand txcmd;
-    txcmd.cmdType = TXCMD_TYPE_WRITEREG;
+    txcmd.cmdType = TXCMD_TYPE_WRITEDP;
     txcmd.data    = data;
-    txcmd.APnDP   = APnDP ? 1:0;
-    txcmd.address = (uint8_t)address;
+    txcmd.address = address;
 
     // send the packet
-    std::vector<uint8_t> buffer;
-    buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
-
-    if (!writePacket(buffer))
+    if (!writePacket(&txcmd, sizeof(txcmd)))
     {
-        return INT_ERROR;
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
     }
 
     // receive status packet
+    std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
-        return INT_ERROR;
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
     }
     else
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            return INT_ERROR;
+            return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
-            return INT_ERROR;
+            return RXCMD_PROTOCOL_ERROR;
         }
-        else
-        {
-            switch(rxcmd->swdcode)
-            {
-            case 1:
-                return SWD_OK;
-            case 2:
-                return SWD_WAIT;
-            case 4:
-                return SWD_FAULT;
-            default:
-                m_lastError = "Unknown SWD ACK";
-                return INT_ERROR;
-            }
-        }
+        return rxcmd->status;
     }
+
     // we should never get here..
-    return INT_ERROR;
+    return RXCMD_PROTOCOL_ERROR;
 }
 
-HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t &data)
+HWResult HardwareInterface::readDP(uint32_t address, uint32_t &data)
 {
     HardwareTXCommand txcmd;
-    txcmd.cmdType = TXCMD_TYPE_READREG;
+    txcmd.cmdType = TXCMD_TYPE_READDP;
     txcmd.data    = data;
-    txcmd.APnDP   = APnDP ? 1:0;
-    txcmd.address = (uint8_t)address;
+    txcmd.address = address;
 
     // send the packet
-    std::vector<uint8_t> buffer;
-    buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
-    if (!writePacket(buffer))
+    if (!writePacket(&txcmd, sizeof(txcmd)))
     {
         printf("%s\n", getLastError().c_str());
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
 
     // receive status packet
+    std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
         printf("%s\n", getLastError().c_str());
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
     else
     {
@@ -364,35 +343,199 @@ HWResult HardwareInterface::readRegister(bool APnDP, uint32_t address, uint32_t 
         {
             m_lastError = "Received packet is larger than expected";
             printf("%s\n", getLastError().c_str());
-            return INT_ERROR;
+            return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
             printf("%s\n", getLastError().c_str());
-            return INT_ERROR;
+            return RXCMD_PROTOCOL_ERROR;
         }
         else
         {
-            data = rxcmd->data;            
-            switch(rxcmd->swdcode)
-            {
-            case 1:
-                return SWD_OK;
-            case 2:
-                return SWD_WAIT;
-            case 4:
-                return SWD_FAULT;
-            default:
-                m_lastError = "Unknown SWD ACK";
-                printf("%s\n", getLastError().c_str());
-                return INT_ERROR;
-            }
+            data = rxcmd->data;
+            return rxcmd->status;
         }
     }
     // we should never get here..
-    return INT_ERROR;
+    return RXCMD_PROTOCOL_ERROR;
+}
+
+HWResult HardwareInterface::writeAP(uint32_t address, uint32_t data)
+{
+    HardwareTXCommand txcmd;
+    txcmd.cmdType = TXCMD_TYPE_WRITEAP;
+    txcmd.data    = data;
+    txcmd.address = address;
+
+    // send the packet
+    if (!writePacket(&txcmd, sizeof(txcmd)))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+
+    // receive status packet
+    std::vector<uint8_t> buffer;
+    if (!readPacket(buffer))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+    else
+    {
+        if (buffer.size() != sizeof(HardwareRXCommand))
+        {
+            m_lastError = "Received packet is larger than expected";
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
+        if (rxcmd->status != RXCMD_STATUS_OK)
+        {
+            m_lastError = "Protocol error";
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        return rxcmd->status;
+    }
+
+    // we should never get here..
+    return RXCMD_PROTOCOL_ERROR;
+}
+
+HWResult HardwareInterface::readAP(uint32_t address, uint32_t &data)
+{
+    HardwareTXCommand txcmd;
+    txcmd.cmdType = TXCMD_TYPE_READAP;
+    txcmd.data    = data;
+    txcmd.address = address;
+
+    // send the packet
+    if (!writePacket(&txcmd, sizeof(txcmd)))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+
+    // receive status packet
+    std::vector<uint8_t> buffer;
+    if (!readPacket(buffer))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+    else
+    {
+        if (buffer.size() != sizeof(HardwareRXCommand))
+        {
+            m_lastError = "Received packet is larger than expected";
+            printf("%s\n", getLastError().c_str());
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
+        if (rxcmd->status != RXCMD_STATUS_OK)
+        {
+            m_lastError = "Protocol error";
+            printf("%s\n", getLastError().c_str());
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        else
+        {
+            data = rxcmd->data;
+            return rxcmd->status;
+        }
+    }
+    // we should never get here..
+    return RXCMD_PROTOCOL_ERROR;
+}
+
+HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
+{
+    HardwareTXCommand txcmd;
+    txcmd.cmdType = TXCMD_TYPE_WRITEMEM;
+    txcmd.data    = data;
+    txcmd.address = address;
+
+    // send the packet
+    if (!writePacket(&txcmd, sizeof(txcmd)))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+
+    // receive status packet
+    std::vector<uint8_t> buffer;
+    if (!readPacket(buffer))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+    else
+    {
+        if (buffer.size() != sizeof(HardwareRXCommand))
+        {
+            m_lastError = "Received packet is larger than expected";
+            printf("%s\n", getLastError().c_str());
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
+        if (rxcmd->status != RXCMD_STATUS_OK)
+        {
+            m_lastError = "Protocol error";
+            printf("%s\n", getLastError().c_str());
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        return rxcmd->status;
+    }
+
+    // we should never get here..
+    return RXCMD_PROTOCOL_ERROR;
+}
+
+HWResult HardwareInterface::readMemory(uint32_t address, uint32_t &data)
+{
+    HardwareTXCommand txcmd;
+    txcmd.cmdType = TXCMD_TYPE_READMEM;
+    txcmd.data    = data;
+    txcmd.address = address;
+
+    // send the packet
+    if (!writePacket(&txcmd, sizeof(txcmd)))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+
+    // receive status packet
+    std::vector<uint8_t> buffer;
+    if (!readPacket(buffer))
+    {
+        printf("%s\n", getLastError().c_str());
+        return RXCMD_PROTOCOL_ERROR;
+    }
+    else
+    {
+        if (buffer.size() != sizeof(HardwareRXCommand))
+        {
+            m_lastError = "Received packet is larger than expected";
+            printf("%s\n", getLastError().c_str());
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
+        if (rxcmd->status != RXCMD_STATUS_OK)
+        {
+            m_lastError = "Protocol error";
+            printf("%s\n", getLastError().c_str());
+            return RXCMD_PROTOCOL_ERROR;
+        }
+        else
+        {
+            data = rxcmd->data;
+            return rxcmd->status;
+        }
+    }
+    // we should never get here..
+    return RXCMD_PROTOCOL_ERROR;
 }
 
 HWResult HardwareInterface::queryInterfaceName(std::string &name)
@@ -400,24 +543,21 @@ HWResult HardwareInterface::queryInterfaceName(std::string &name)
     HardwareTXCommand txcmd;
     txcmd.cmdType = TXCMD_TYPE_GETPROGID;
     txcmd.data    = 0x01010101;
-    txcmd.APnDP   = 1;
     txcmd.address = 1;
 
     // send the packet
-    std::vector<uint8_t> buffer;
-    buffer.insert(buffer.begin(), (const uint8_t*)&txcmd, ((const uint8_t*)&txcmd) + sizeof(txcmd));
-
-    if (!writePacket(buffer))
+    if (!writePacket(&txcmd, sizeof(txcmd)))
     {
         printf("%s\n",getLastError().c_str());
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
 
     // receive status packet
+    std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
         printf("%s\n",getLastError().c_str());
-        return INT_ERROR;
+        return RXCMD_PROTOCOL_ERROR;
     }
     else
     {
@@ -425,7 +565,7 @@ HWResult HardwareInterface::queryInterfaceName(std::string &name)
         name.clear();
         buffer.erase(buffer.begin(), buffer.begin()+sizeof(HardwareRXCommand));
         name.insert(name.begin(), buffer.begin(), buffer.end());
-        return SWD_OK;
+        return RXCMD_STATUS_OK;
     }
 }
 
@@ -440,6 +580,7 @@ void HardwareInterface::printPacket(const std::vector<uint8_t> &data)
     printf("\n");
 }
 
+#if 0
 void HardwareInterface::generateOKPacket()
 {
     HardwareRXCommand rxcmd;
@@ -481,3 +622,4 @@ void HardwareInterface::generateNamePacket(const std::string &deviceName)
         }
     }
 }
+#endif

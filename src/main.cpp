@@ -169,15 +169,237 @@ SQInteger targetConnect(HSQUIRRELVM v)
     return 1;   //return one item (table)
 }
 
-/** Squirrel command: read(APnDP, address)
 
-    connect to target
+/** Squirrel command: readAP(address)
     returns a table:
-      .swdcode - SWD return code
-      .data    - the data read
+      .status - 1 for OK
+      .data   - the data read
+*/
+SQInteger readDP(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
 
-   */
-SQInteger doReadTransaction(HSQUIRRELVM v)
+    if (g_interface == 0)
+    {
+        printf("Error: can't connect - open an interface first!");
+        return 0;
+    }
+
+    if (nargs != 2)
+    {
+        printf("Incorrect number of arguments\n");
+        return 0;   // no arguments returned;
+    }
+
+    SQInteger address;
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
+    {
+        printf("First argument should be an integer");
+        return 0;
+    }
+
+    uint32_t my_data;
+    HWResult result = g_interface->readDP(address, my_data);
+
+    // create a table as a return argument
+    sq_newtable(v);
+
+    sq_pushstring(v, _SC("status"), -1);
+    sq_pushinteger(v, result);
+    sq_newslot(v, -3, SQFalse);
+
+    sq_pushstring(v, _SC("data"), -1);
+    sq_pushinteger(v, my_data);
+    sq_newslot(v, -3, SQFalse);
+
+    return 1;   //return one item (table)
+}
+
+/** Squirrel command: writeDP(address)
+    returns a table:
+      .status - 1 for OK
+*/
+SQInteger writeDP(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (g_interface == 0)
+    {
+        printf("Error: can't connect - open an interface first!");
+        return 0;
+    }
+
+    if (nargs != 3)
+    {
+        printf("Incorrect number of arguments\n");
+        return 0;   // no arguments returned;
+    }
+
+    SQInteger address, data;
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
+    {
+        printf("Second argument should be an integer");
+        return 0;
+    }
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
+    {
+        printf("First argument should be an integer");
+        return 0;
+    }
+
+    //printf("%d %d\n", address, data);
+
+    HWResult result = g_interface->writeDP(address, data);
+
+    // create a table as a return argument
+    sq_newtable(v);
+
+    sq_pushstring(v, _SC("status"), -1);
+    sq_pushinteger(v, result);
+    sq_newslot(v, -3, SQFalse);
+
+    return 1;   //return one item (table)
+}
+
+
+/** Squirrel command: readAP(address)
+    returns a table:
+      .status - 1 for OK
+      .data   - the data read
+*/
+SQInteger readAP(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (g_interface == 0)
+    {
+        printf("Error: can't connect - open an interface first!");
+        return 0;
+    }
+
+    if (nargs != 2)
+    {
+        printf("Incorrect number of arguments\n");
+        return 0;   // no arguments returned;
+    }
+
+    SQInteger address;
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
+    {
+        printf("Second argument should be an integer");
+        return 0;
+    }
+
+    uint32_t my_data;
+    HWResult result = g_interface->readAP(address, my_data);
+
+    // create a table as a return argument
+    sq_newtable(v);
+
+    sq_pushstring(v, _SC("status"), -1);
+    sq_pushinteger(v, result);
+    sq_newslot(v, -3, SQFalse);
+
+    sq_pushstring(v, _SC("data"), -1);
+    sq_pushinteger(v, my_data);
+    sq_newslot(v, -3, SQFalse);
+
+    return 1;   //return one item (table)
+}
+
+/** Squirrel command: writeAP(address)
+    returns a table:
+      .status - 1 for OK
+*/
+SQInteger writeAP(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (g_interface == 0)
+    {
+        printf("Error: can't connect - open an interface first!");
+        return 0;
+    }
+
+    if (nargs != 3)
+    {
+        printf("Incorrect number of arguments\n");
+        return 0;   // no arguments returned;
+    }
+
+    SQInteger address, data;
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
+    {
+        printf("Second argument should be an integer");
+        return 0;
+    }
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
+    {
+        printf("Second argument should be an integer");
+        return 0;
+    }
+
+    HWResult result = g_interface->writeAP(address, data);
+
+    // create a table as a return argument
+    sq_newtable(v);
+
+    sq_pushstring(v, _SC("status"), -1);
+    sq_pushinteger(v, result);
+    sq_newslot(v, -3, SQFalse);
+
+    return 1;   //return one item (table)
+}
+
+
+
+/** Squirrel command: readMemory(address)
+    returns a table:
+      .status - 1 for OK
+      .data   - the data read
+*/
+SQInteger readMemory(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (g_interface == 0)
+    {
+        printf("Error: can't connect - open an interface first!");
+        return 0;
+    }
+
+    if (nargs != 2)
+        return 0;   // no arguments returned;
+
+    SQInteger address;
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
+    {
+        printf("Second argument should be an integer");
+        return 0;
+    }
+
+    uint32_t my_data;
+    HWResult result = g_interface->readMemory(address, my_data);
+
+    // create a table as a return argument
+    sq_newtable(v);
+
+    sq_pushstring(v, _SC("status"), -1);
+    sq_pushinteger(v, result);
+    sq_newslot(v, -3, SQFalse);
+
+    sq_pushstring(v, _SC("data"), -1);
+    sq_pushinteger(v, my_data);
+    sq_newslot(v, -3, SQFalse);
+
+    return 1;   //return one item (table)
+}
+
+/** Squirrel command: writeMemory(address)
+    returns a table:
+      .status - 1 for OK
+*/
+SQInteger writeMemory(HSQUIRRELVM v)
 {
     SQInteger nargs = sq_gettop(v);  // get number of arguments
 
@@ -190,96 +412,29 @@ SQInteger doReadTransaction(HSQUIRRELVM v)
     if (nargs != 3)
         return 0;   // no arguments returned;
 
-    SQInteger APnDP, address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &APnDP)))
-    {
-        printf("First argument should be an integer");
-        return 0;
-    }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
+    SQInteger address, data;
+    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
     {
         printf("Second argument should be an integer");
-        return 0;
-    }
-
-    //printf("APnDP  : %d\n", APnDP);
-   // printf("Address: %08X\n", address);
-
-    uint32_t my_data;
-    HWResult result = g_interface->readRegister((APnDP > 0), address, my_data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("swdcode"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    sq_pushstring(v, _SC("data"), -1);
-    sq_pushinteger(v, my_data);
-    sq_newslot(v, -3, SQFalse);
-
-    //printf("RX Data: %08X\n", my_data);
-
-    return 1;   //return one item (table)
-}
-
-
-
-/** Squirrel command: write(<int>APnDP, <int>address, <int>data)
-
-    perform a write transaction
-    returns a swdcode as an integers
-
-   */
-SQInteger doWriteTransaction(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    //printf("doWriteTransaction %d\n", nargs);
-
-    if (nargs != 4)
-        return 0;   // no arguments returned;
-
-    SQInteger APnDP, address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -3, &APnDP)))
-    {
-        printf("First argument should be an integer");
         return 0;
     }
     if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
     {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
-    {
-        printf("Third argument should be an integer");
+        printf("First argument should be an integer");
         return 0;
     }
 
-    //printf("APnDP  : %d\n", APnDP);
-    //printf("Address: %08X\n", address);
-    //printf("data   : %08X\n", data);
-
-    HWResult result = g_interface->writeRegister((APnDP > 0), address, data);
+    HWResult result = g_interface->writeMemory(address, data);
 
     // create a table as a return argument
     sq_newtable(v);
 
-    sq_pushstring(v, _SC("swdcode"), -1);
+    sq_pushstring(v, _SC("status"), -1);
     sq_pushinteger(v, result);
     sq_newslot(v, -3, SQFalse);
 
     return 1;   //return one item (table)
 }
-
 
 
 /** Squirrel command: <string> getInterfaceName()
@@ -474,9 +629,9 @@ int main(int argc, char *argv[])
     printf("  openInterface(<integer> | <string>)\n");
     printf("  closeInterface()\n");
     printf("  showSerial() to enumerate serial interfaces.\n");
-    printf("  table{.swdcode,.idcode} = connect() to connect to the target.\n");
-    printf("  swdcode = dwrite(APnDP, address/4, data) to write to a register.\n");
-    printf("  table{.swdcode,.data} = dread(APnDP, address/4) to read a register.\n");
+    printf("  table{.status,.idcode} = connect() to connect to the target.\n");
+    printf("  table{.status,data} = readAP/readDP/readMemory (address)\n");
+    printf("  table{.status} = writeAP/writeDP/writeMemory (address, data)\n");
     printf("\n");
 
     v=sq_open(1024);
@@ -498,8 +653,12 @@ int main(int argc, char *argv[])
     register_global_func(v, closeInterface, _SC("closeInterface"));
     register_global_func(v, getInterfaceName, _SC("getInterfaceName"));
     register_global_func(v, targetConnect, _SC("connect"));
-    register_global_func(v, doWriteTransaction, _SC("dwrite"));
-    register_global_func(v, doReadTransaction, _SC("dread"));
+    register_global_func(v, readAP, _SC("readAP"));
+    register_global_func(v, writeAP, _SC("writeAP"));
+    register_global_func(v, readDP, _SC("readDP"));
+    register_global_func(v, writeDP, _SC("writeDP"));
+    register_global_func(v, readMemory, _SC("readMemory"));
+    register_global_func(v, writeMemory, _SC("writeMemory"));
     register_global_func(v, targetReset, _SC("targetReset"));
 
     // load all the targets

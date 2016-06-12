@@ -29,9 +29,9 @@ targets <- [];      // create an empty targets array
 targetIDx <- -1;    // current target in use, -1 if none selected
 
 // SWD return codes
-SWD_OK <- 1
-SWD_WAIT <- 2
-SWD_FAULT <- 4
+STAT_OK <- 1
+STAT_WAIT <- 2
+STAT_FAULT <- 4
 
 // *************************************
 // Target baseclass

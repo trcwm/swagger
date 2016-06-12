@@ -18,10 +18,7 @@
 
 typedef uint32_t HWResult;
 
-#define SWD_OK 1
-#define SWD_WAIT 2
-#define SWD_FAULT 4
-#define INT_ERROR 99
+
 
 class HardwareInterface
 {
@@ -58,11 +55,18 @@ public:
     /** connect to the target */
     virtual HWResult connect(uint32_t &idcode);
 
-    /** write register */
-    virtual HWResult writeRegister(bool APnDP, uint32_t address, uint32_t data);
+    virtual HWResult writeAP(uint32_t address, uint32_t data);
 
-    /** read register */
-    virtual HWResult readRegister(bool APnDP, uint32_t address, uint32_t &data);
+    virtual HWResult writeDP(uint32_t address, uint32_t data);
+
+    virtual HWResult readAP(uint32_t address, uint32_t &data);
+
+    virtual HWResult readDP(uint32_t address, uint32_t &data);
+
+    virtual HWResult writeMemory(uint32_t address, uint32_t data);
+
+    virtual HWResult readMemory(uint32_t address, uint32_t &data);
+
 
     /** read programmer ID string */
     virtual HWResult queryInterfaceName(std::string &name);
@@ -73,14 +77,17 @@ public:
         return m_lastError;
     }
 
+#if 0
     /** for testing/development purposes */
     static void generateOKPacket();
 
     /** for testing/developement purposes */
     static void generateNamePacket(const std::string &deviceName);
+#endif
 
 protected:
-    bool writePacket(const std::vector<uint8_t> &data);
+    //bool writePacket(const std::vector<uint8_t> &data);
+    bool writePacket(const void* data, size_t bytes);
     bool readPacket(std::vector<uint8_t> &data);
 
     void printPacket(const std::vector<uint8_t> &data);

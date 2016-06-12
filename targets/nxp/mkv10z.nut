@@ -175,21 +175,26 @@ class TargetKV10Z extends TargetBase
         enableDebugPower();
         
         // setup debug mode through SCS
-        writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
+        local retval = writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
+        if (retval.status != STAT_OK)
+        {
+            logmsg(LOG_ERROR, "Write memory failed\n");
+            return -1;            
+        }
                          
         // release the system reset and enter debug mode
-        local retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
-        if (retval.swdcode != SWD_OK)
+        retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
+        if (retval.status != STAT_OK)
         {
-            logmsg(LOG_ERROR, "Reset release failed (SWD not OK)\n");
+            logmsg(LOG_ERROR, "Reset release failed\n");
             return -1;
         }
         
         // check if we've entered debug mode
         retval = readAP(MDM_AP_STAT);
-        if (retval.swdcode != SWD_OK)
+        if (retval.status != STAT_OK)
         {
-            logmsg(LOG_ERROR, "Checking for debug mode failed (SWD not OK)\n");
+            logmsg(LOG_ERROR, "Checking for debug mode failed\n");
             return -1;
         }
         if (retval.data & MDM_STAT_COREHALTED)
@@ -212,7 +217,7 @@ class TargetKV10Z extends TargetBase
     function isReset()
     {
         local retval = readAP(MDM_AP_STAT);
-        if (retval.swdcode != SWD_OK)
+        if (retval.status != STAT_OK)
         {
             logmsg(LOG_ERROR, "Target reset query command returned SWD FAULT\n");
             return -1;
@@ -231,7 +236,7 @@ class TargetKV10Z extends TargetBase
         if (state == 1)
         {
             retval = writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ);            
-            if (retval.swdcode != SWD_OK)
+            if (retval.status != STAT_OK)
             {
                 logmsg(LOG_ERROR, "Reset request failed!\n");
                 return -1;
@@ -246,7 +251,7 @@ class TargetKV10Z extends TargetBase
         {
             // release reset
             retval = writeAP(MDM_AP_CTRL, 0);
-            if (retval.swdcode != SWD_OK)
+            if (retval.status != STAT_OK)
             {
                 logmsg(LOG_ERROR, "Reset de-assert failed!\n");
                 return -1;
@@ -307,7 +312,7 @@ class TargetKV10Z extends TargetBase
     
     function securedErase()
     {
-        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).swdcode != SWD_OK)
+        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).status != STAT_OK)
         {
             logmsg(LOG_ERROR, "Mass erase trigger failed (SWD)\n");
             return -1;
@@ -347,7 +352,7 @@ class TargetKV10Z extends TargetBase
         }
         
         // make sure the flash has a clock
-        if (writeMemory(SIM_SCGC6, SCGC6_FTF).swdcode != SWD_OK)
+        if (writeMemory(SIM_SCGC6, SCGC6_FTF).status != STAT_OK)
         {
             logmsg(LOG_ERROR, "Could not set the FTF clock gating bit (SWD)\n");
             return -1;
@@ -384,7 +389,7 @@ class TargetKV10Z extends TargetBase
         
         // get the size of the flash
         retval = readMemory(SIM_FCFG1);
-        if (retval.swdcode != SWD_OK)
+        if (retval.status != STAT_OK)
         {
             logmsg(LOG_ERROR, "Checking reading SIM_FCFG1 (SWD not OK)\n");
             return -1;
@@ -436,7 +441,7 @@ class TargetKV10Z extends TargetBase
         //   ERASING FLASH
         // ************************************************************
         
-        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).swdcode != SWD_OK)
+        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).status != STAT_OK)
         {
             logmsg(LOG_ERROR, "Mass erase trigger failed (SWD)\n");
             return -1;
