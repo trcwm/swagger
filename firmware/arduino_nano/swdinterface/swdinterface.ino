@@ -122,7 +122,7 @@ void setup()
   pinMode(SWDCLK_PIN, OUTPUT);
 
   g_interface = new ArduinoSWDInterface();
-  g_interface->initPins();
+  //g_interface->initPins();
 }
 
 void loop() 
@@ -146,7 +146,7 @@ void loop()
 
         // execute command
         uint32_t data;
-        uint8_t stat;
+        bool stat;
         switch(cmd->cmdType)
         {          
           default:
@@ -159,8 +159,8 @@ void loop()
             break;
           case TXCMD_TYPE_CONNECT:
             data = 0xDEADBEAF;
-            stat = g_interface->doConnect(data);
-            reply((stat==SWD_OK) ? RXCMD_STATUS_OK : RXCMD_STATUS_FAIL, data);  // return IDCODE
+            stat = g_interface->tryConnect(data);
+            reply(stat ? RXCMD_STATUS_OK : RXCMD_STATUS_FAIL, data);  // return IDCODE
             break;
           case TXCMD_TYPE_READDP:
             stat = g_interface->readDP(cmd->address, data);

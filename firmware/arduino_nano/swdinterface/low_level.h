@@ -33,7 +33,7 @@ class SWDInterfaceBase
      *  idcode will contain the IDCODE if operation was succesfull.
      *  Returns the SWD ack code
      */
-    uint8_t doConnect(uint32_t &idcode);
+    virtual uint8_t doConnect(uint32_t &idcode);
 
     /** Perform a write transaction
      *  APnDP - true if transaction is an Access Port transaction, else Debug Port.

@@ -170,7 +170,7 @@ SQInteger targetConnect(HSQUIRRELVM v)
 }
 
 
-/** Squirrel command: readAP(address)
+/** Squirrel command: readDP(address)
     returns a table:
       .status - 1 for OK
       .data   - the data read

@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include "low_level.h"
 
-#define SWDDELAY_us 10
+#define SWDDELAY_us 20
 #define LEDPIN 13
 #define SWDDAT_PIN 2
 #define SWDCLK_PIN 3
@@ -23,11 +23,12 @@
                            wait gracefully.
 */
 
-class ArduinoSWDInterface : public SWDInterfaceBase
+class ArduinoSWDInterface : private SWDInterfaceBase
 {
   public:
     ArduinoSWDInterface() : SWDInterfaceBase()
     {
+        initPins();
         m_APcache = 0xFFFFFFFF; // invalidate cache
     }
 
@@ -48,6 +49,9 @@ class ArduinoSWDInterface : public SWDInterfaceBase
 
     /** read from a debug port */
     bool readDP(uint32_t address, uint32_t &data);
+
+    /** connect */
+    bool tryConnect(uint32_t &idcode);
 
   protected:
     // helper functions

@@ -27,6 +27,15 @@ const uint32_t AHB_AP_DATA   = 0x0000000C;
 const uint32_t AHB_AP_ROMTBL = 0x000000F8;
 const uint32_t AHB_AP_IDR    = 0x000000FC;
 
+bool ArduinoSWDInterface::tryConnect(uint32_t &idcode)
+{
+    m_APcache = 0xFFFFFFFF; // invalidate Access port cache
+    if (doConnect(idcode) == SWD_OK)
+        return true;
+        
+    return false;
+}
+
 bool ArduinoSWDInterface::writeDP(uint32_t address, uint32_t data)
 {
     uint32_t A23 = (address >> 2) & 0x03;
@@ -66,13 +75,13 @@ bool ArduinoSWDInterface::selectAP(uint32_t address)
     uint32_t retries = 0;
     while(!writeDP(DP_SELECT, ap))
     {        
-        lineIdle();
+        //lineIdle();
         retries++;
         if (retries == MAX_RETRIES)
             return false;
     }
     
-    lineIdle();
+    //lineIdle();
     m_APcache = ap;
     return true;
 }
@@ -87,7 +96,7 @@ bool ArduinoSWDInterface::writeAP(uint32_t address, uint32_t data)
     uint8_t retval;
     while((retval=doWriteTransaction(true, A23, data)) == SWD_WAIT)
     {
-        lineIdle();
+        //lineIdle();
         retries++;
         if (retries == MAX_RETRIES)
             return false;
@@ -104,7 +113,7 @@ bool ArduinoSWDInterface::readAP(uint32_t address, uint32_t &data)
     uint8_t retval;
     while((retval=doReadTransaction(true, A23, data)) == SWD_WAIT)
     {
-        lineIdle();
+        //lineIdle();
         retries++;
         if (retries == MAX_RETRIES)
             return false;

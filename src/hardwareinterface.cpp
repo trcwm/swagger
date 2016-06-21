@@ -285,7 +285,7 @@ HWResult HardwareInterface::writeDP(uint32_t address, uint32_t data)
     // send the packet
     if (!writePacket(&txcmd, sizeof(txcmd)))
     {
-        printf("%s\n", getLastError().c_str());
+        printf("writeDP: %s\n", getLastError().c_str());
         return RXCMD_PROTOCOL_ERROR;
     }
 
@@ -300,13 +300,13 @@ HWResult HardwareInterface::writeDP(uint32_t address, uint32_t data)
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
-            m_lastError = "Received packet is larger than expected";
+            m_lastError = "writeDP: Received packet is larger than expected";
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
-            m_lastError = "Protocol error";
+            m_lastError = "writeDP: Protocol error";
             return RXCMD_PROTOCOL_ERROR;
         }
         return rxcmd->status;
@@ -341,14 +341,14 @@ HWResult HardwareInterface::readDP(uint32_t address, uint32_t &data)
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
-            m_lastError = "Received packet is larger than expected";
+            m_lastError = "readDP: Received packet is larger than expected";
             printf("%s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
-            m_lastError = "Protocol error";
+            m_lastError = "readDP: Protocol error";
             printf("%s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
@@ -387,13 +387,13 @@ HWResult HardwareInterface::writeAP(uint32_t address, uint32_t data)
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
-            m_lastError = "Received packet is larger than expected";
+            m_lastError = "writeAP: Received packet is larger than expected";
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
-            m_lastError = "Protocol error";
+            m_lastError = "writeAP: Protocol error";
             return RXCMD_PROTOCOL_ERROR;
         }
         return rxcmd->status;
@@ -428,14 +428,14 @@ HWResult HardwareInterface::readAP(uint32_t address, uint32_t &data)
     {
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
-            m_lastError = "Received packet is larger than expected";
+            m_lastError = "readAP: Received packet is larger than expected";
             printf("%s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
-            m_lastError = "Protocol error";
+            m_lastError = "readAP: Protocol error";
             printf("%s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
@@ -459,7 +459,7 @@ HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
     // send the packet
     if (!writePacket(&txcmd, sizeof(txcmd)))
     {
-        printf("%s\n", getLastError().c_str());
+        printf("writeMemory: %s\n", getLastError().c_str());
         return RXCMD_PROTOCOL_ERROR;
     }
 
@@ -467,7 +467,7 @@ HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
     std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
-        printf("%s\n", getLastError().c_str());
+        printf("writeMemory: %s\n", getLastError().c_str());
         return RXCMD_PROTOCOL_ERROR;
     }
     else
@@ -475,14 +475,14 @@ HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            printf("%s\n", getLastError().c_str());
+            printf("writeMemory: %s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
-            printf("%s\n", getLastError().c_str());
+            printf("writeMemory: %s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         return rxcmd->status;
@@ -518,13 +518,13 @@ HWResult HardwareInterface::readMemory(uint32_t address, uint32_t &data)
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            printf("%s\n", getLastError().c_str());
+            printf("readMemory: %s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
-            m_lastError = "Protocol error";
+            m_lastError = "readMemory: Protocol error";
             printf("%s\n", getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }

@@ -544,6 +544,32 @@ class TargetKV10Z extends TargetBase
         myfile.close();
     }
     
+    function flash_compare()
+    {
+        local myfile = file("board_init.bin","rb");   
+        local myblob = myfile.readblob(myfile.len());        
+        print(format("Binary data is %d bytes\n", myblob.len()));
+                
+        local idx = 0;
+        while(idx < myblob.len())
+        {
+            local word = myblob.readn('i');
+            local flw  = readMemory(idx).data;
+            if (flw != word)
+            {
+                print(format("(%08X) <- %08X\n", idx, word));
+                return -1;
+            }
+            else
+            {
+                print(format("(%08X) <- %08X OK!\n", idx, word));
+            }
+            idx += 4;
+        }
+        
+        myfile.close();
+    }    
+    
     function ftest()
     {
         local myfile = file("stubby.bin","rb");   
