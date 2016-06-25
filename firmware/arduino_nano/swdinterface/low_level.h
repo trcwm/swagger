@@ -8,6 +8,10 @@
 #ifndef low_level_h
 #define low_level_h
 
+#define SWD_OK 1
+#define SWD_WAIT 2
+#define SWD_FAIL 4
+
 #include <stdint.h>
 
 /*************************************************************

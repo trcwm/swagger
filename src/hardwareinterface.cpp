@@ -349,7 +349,7 @@ HWResult HardwareInterface::readDP(uint32_t address, uint32_t &data)
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "readDP: Protocol error";
-            printf("%s\n", getLastError().c_str());
+            printf("%s %d\n", getLastError().c_str(), rxcmd->status);
             return RXCMD_PROTOCOL_ERROR;
         }
         else
@@ -459,7 +459,7 @@ HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
     // send the packet
     if (!writePacket(&txcmd, sizeof(txcmd)))
     {
-        printf("writeMemory: %s\n", getLastError().c_str());
+        printf("writeMemory: %08X %s\n", address, getLastError().c_str());
         return RXCMD_PROTOCOL_ERROR;
     }
 
@@ -467,7 +467,7 @@ HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
     std::vector<uint8_t> buffer;
     if (!readPacket(buffer))
     {
-        printf("writeMemory: %s\n", getLastError().c_str());
+        printf("writeMemory: %08X %s\n", address, getLastError().c_str());
         return RXCMD_PROTOCOL_ERROR;
     }
     else
@@ -475,14 +475,14 @@ HWResult HardwareInterface::writeMemory(uint32_t address, uint32_t data)
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            printf("writeMemory: %s\n", getLastError().c_str());
+            printf("writeMemory: %08X %s\n", address, getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
             m_lastError = "Protocol error";
-            printf("writeMemory: %s\n", getLastError().c_str());
+            printf("writeMemory: %08X %s\n", address, getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         return rxcmd->status;
@@ -518,14 +518,14 @@ HWResult HardwareInterface::readMemory(uint32_t address, uint32_t &data)
         if (buffer.size() != sizeof(HardwareRXCommand))
         {
             m_lastError = "Received packet is larger than expected";
-            printf("readMemory: %s\n", getLastError().c_str());
+            printf("readMemory: %08X %s\n", address, getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         HardwareRXCommand *rxcmd = (HardwareRXCommand *)&buffer[0];
         if (rxcmd->status != RXCMD_STATUS_OK)
         {
-            m_lastError = "readMemory: Protocol error";
-            printf("%s\n", getLastError().c_str());
+            m_lastError = "Protocol error";
+            printf("readMemory: %08X %s\n", address, getLastError().c_str());
             return RXCMD_PROTOCOL_ERROR;
         }
         else

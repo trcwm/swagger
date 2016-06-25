@@ -23,9 +23,9 @@
 uint8_t g_rxbuffer[32]; // packet receive buffer
 uint8_t g_idx = 0;      // write index into receive buffer
 
-const uint8_t SWD_OK=1;
-const uint8_t SWD_WAIT=2;
-const uint8_t SWD_FAIL=4;
+//const uint8_t SWD_OK=1;
+//const uint8_t SWD_WAIT=2;
+//const uint8_t SWD_FAIL=4;
 
 /*************************************************************
  * 
@@ -34,13 +34,6 @@ const uint8_t SWD_FAIL=4;
  */
 
 ArduinoSWDInterface *g_interface = 0;
-
-// Arduino programmer packet
-const uint8_t programmerNamePacket[] = 
-{
-  0x1D,0x01,0x01,0x01,0x01,0x01,0x01,0x41,0x72,0x64,0x75,0x69,0x6E,0x6F,0x20,
-  0x55,0x6E,0x6F,0x20,0x50,0x72,0x6F,0x67,0x72,0x61,0x6D,0x6D,0x65,0x72,0x01,0x00
-};
 
 // *********************************************************
 //   COBS decoder (source: wikipedia)
@@ -119,7 +112,9 @@ void setup()
   Serial.begin(19200);
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
+  digitalWrite(SWDDAT_PIN, HIGH);
   pinMode(SWDCLK_PIN, OUTPUT);
+  pinMode(SWDDAT_PIN, OUTPUT);
 
   g_interface = new ArduinoSWDInterface();
   //g_interface->initPins();
@@ -187,8 +182,7 @@ void loop()
             reply(stat ? RXCMD_STATUS_OK : RXCMD_STATUS_FAIL, 0);
             break;
           case TXCMD_TYPE_GETPROGID:
-            Serial.write((char*)programmerNamePacket, strlen((char*)programmerNamePacket)+1);
-            Serial.flush();
+            reply(RXCMD_STATUS_OK, 0xFF000001);
             break;
         }
       }

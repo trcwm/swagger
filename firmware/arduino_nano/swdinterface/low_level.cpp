@@ -5,6 +5,8 @@
 
 */
 
+
+
 #include "low_level.h"
 
 SWDInterfaceBase::SWDInterfaceBase()
@@ -29,6 +31,7 @@ void SWDInterfaceBase::initPins()
   configDataPin(true);  // set output
 }
 
+#if 0
 void SWDInterfaceBase::clockStrobe()
 {
   doDelay();
@@ -49,6 +52,35 @@ bool SWDInterfaceBase::readBit()
   clockStrobe();
   return b;
 }
+
+#else
+// inline with CMSIS-DAP
+void SWDInterfaceBase::clockStrobe()
+{
+  setClockPin(false);
+  doDelay();
+  setClockPin(true);
+  doDelay();
+}
+
+void SWDInterfaceBase::writeBit(bool v)
+{
+  setDataPin(v);
+  clockStrobe();
+}
+
+bool SWDInterfaceBase::readBit()
+{  
+  setClockPin(false);
+  doDelay();
+  bool b = getDataPin();
+  setClockPin(true);
+  doDelay();
+  return b;
+}
+
+#endif
+
 
 void SWDInterfaceBase::writeByte(uint8_t data)
 {
@@ -95,6 +127,7 @@ void SWDInterfaceBase::lineReset()
 
 void SWDInterfaceBase::lineIdle()
 {
+  setDataPin(false);
   configDataPin(true); // set as output
   for(int8_t i=0; i<8; i++)
     writeBit(false);
@@ -108,6 +141,7 @@ uint8_t SWDInterfaceBase::doConnect(uint32_t &idcode)
   writeWord32(0xE79E);  // JTAG to SWD v5.x unlock code
   lineReset();
   lineIdle();
+  setDataPin(true);
   return doReadTransaction(false, 0, idcode);
 }
 
@@ -150,39 +184,59 @@ uint8_t SWDInterfaceBase::doReadTransaction(bool APnDP, uint8_t address, uint32_
 
   uint8_t swdcode = readAck();
 
-  if (swdcode != 1)     // SWD OK!
+  // check the acknowledge status
+  if (swdcode == SWD_OK)
   {
+    data = 0;
+    for(uint8_t i=0; i<32; i++)
+    {
+      data >>= 1;
+      if (readBit())
+        data |= 0x80000000;
+    }
+  
+    parity = readBit();
+    if (calcParity(data) != parity)
+    {
+      //FIXME: what to do?
+      // error, parity check fails!
+      // for now, return a fail
+      swdcode = 4;
+    }
+  
     // turn-around
     configDataPin(true);
     writeBit(false);
+  
+    // line idle so the SWD subsystem can process the transaction
+    lineIdle();
+    setDataPin(true);
+      
+    return swdcode; 
+  }
+  else if ((swdcode == SWD_FAIL) || (swdcode == SWD_WAIT))
+  {
+    // turn-around    
+    readBit();
+    configDataPin(true);
+    //lineIdle();
+    setDataPin(true);
     return swdcode;
   }
 
-  data = 0;
-  for(uint8_t i=0; i<32; i++)
+  // protocol error..
+  // eat data + parity bit 
+  for(uint8_t i=0; i<33; i++)
   {
-    data >>= 1;
-    if (readBit())
-      data |= 0x80000000;
+    readBit();
   }
-
-  parity = readBit();
-  if (calcParity(data) != parity)
-  {
-    //FIXME: what to do?
-    // error, parity check fails!
-    // for now, return a fail
-    swdcode = 4;
-  }
-
-  // turn-around
-  configDataPin(true);
-  writeBit(false);
-
-  // line idle so the SWD subsystem can process the transaction
+  
+  //setDataPin(false);
+  //configDataPin(true);
   lineIdle();
-
-  return swdcode; // everything OK!
+  setDataPin(true);
+  
+  return swdcode;
 }
 
 uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32_t data)
@@ -225,23 +279,43 @@ uint8_t SWDInterfaceBase::doWriteTransaction(bool APnDP, uint8_t address, uint32
 
   uint8_t swdcode = readAck();
 
-  // turn around
-  configDataPin(true);  // output
-  readBit();
-
-  if (swdcode != 1)     // SWD OK!
+  // check the acknowledge status
+  if (swdcode == SWD_OK)
   {
-
+    // turn around
+    readBit(); 
+    configDataPin(true);  // output
+        
+    writeWord32(data);
+  
+    writeBit(calcParity(data));
+  
+    // line idle so the SWD subsystem can process the transaction
     lineIdle();
-    return swdcode; // error!
+    setDataPin(true);
+    return swdcode;   
+  }
+  else if ((swdcode == SWD_FAIL) || (swdcode == SWD_WAIT))
+  {
+    // turn around    
+    readBit();  
+    configDataPin(true);  // output
+    //lineIdle();
+    setDataPin(true);
+    return swdcode;
   }
 
-  writeWord32(data);
-
-  writeBit(calcParity(data));
-
-  // line idle so the SWD subsystem can process the transaction
+  // protocol error..
+  // eat data + parity bit 
+  for(uint8_t i=0; i<33; i++)
+  {
+    readBit();
+  }
+  
+  //setDataPin(false);
+  //configDataPin(true);
   lineIdle();
+  setDataPin(true);  
 
   return swdcode; // everything OK!
 }

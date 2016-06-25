@@ -9,9 +9,9 @@
 #include <stdint.h>
 #include "mid_level.h"
 
-const uint8_t SWD_OK=1;
-const uint8_t SWD_WAIT=2;
-const uint8_t SWD_FAIL=4;
+//const uint8_t SWD_OK=1;
+//const uint8_t SWD_WAIT=2;
+//const uint8_t SWD_FAIL=4;
 
 const uint32_t MAX_RETRIES  = 10;
 
@@ -113,7 +113,6 @@ bool ArduinoSWDInterface::readAP(uint32_t address, uint32_t &data)
     uint8_t retval;
     while((retval=doReadTransaction(true, A23, data)) == SWD_WAIT)
     {
-        //lineIdle();
         retries++;
         if (retries == MAX_RETRIES)
             return false;

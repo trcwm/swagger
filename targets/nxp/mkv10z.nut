@@ -517,7 +517,7 @@ class TargetKV10Z extends TargetBase
     
     function flash_program()
     {
-        local myfile = file("board_init.bin","rb");   
+        local myfile = file("cyclotron.bin","rb");   
         local myblob = myfile.readblob(myfile.len());        
         print(format("Binary data is %d bytes\n", myblob.len()));
                 
@@ -546,7 +546,7 @@ class TargetKV10Z extends TargetBase
     
     function flash_compare()
     {
-        local myfile = file("board_init.bin","rb");   
+        local myfile = file("cyclotron.bin","rb");   
         local myblob = myfile.readblob(myfile.len());        
         print(format("Binary data is %d bytes\n", myblob.len()));
                 
