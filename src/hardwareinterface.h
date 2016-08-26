@@ -77,14 +77,6 @@ public:
         return m_lastError;
     }
 
-#if 0
-    /** for testing/development purposes */
-    static void generateOKPacket();
-
-    /** for testing/developement purposes */
-    static void generateNamePacket(const std::string &deviceName);
-#endif
-
 protected:
     //bool writePacket(const std::vector<uint8_t> &data);
     bool writePacket(const void* data, size_t bytes);
