@@ -57,6 +57,10 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 set(SWAGGER_SRC src/main.cpp
                 src/cobs.cpp
+                src/cobs.h
+                src/squirrel_funcs.cpp
+                src/squirrel_funcs.h
+                include/protocol.h
                 src/hardwareinterface.cpp)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)

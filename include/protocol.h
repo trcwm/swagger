@@ -33,52 +33,31 @@
 #ifndef protocol_include_h
 #define protocol_include_h
 
+#include <stdint.h>
+
 // *********************************************************
 // ** Define command types for HardwareTXCommand structure
 // *********************************************************
 
-#define TXCMD_TYPE_UNKNOWN      0   // uninitialized structure
-#define TXCMD_TYPE_RESETPIN     1   // set /RESET pin state
+#define TXCMD_TYPE_CONNECT      0   // connect to target
+#define TXCMD_TYPE_RESET        1   // set /RESET pin state
 #define TXCMD_TYPE_READAP       2   // read access port register
 #define TXCMD_TYPE_WRITEAP      3   // write access port register
 #define TXCMD_TYPE_READDP       4   // read access port register
 #define TXCMD_TYPE_WRITEDP      5   // write access port register
 #define TXCMD_TYPE_READMEM      6   // read a memory address
 #define TXCMD_TYPE_WRITEMEM     7   // write to a memory address
-#define TXCMD_TYPE_CONNECT      8   // connect to target, return IDCODE.
+#define TXCMD_TYPE_WAITMEMTRUE  8   // wait for memory contents
+#define TXCMD_TYPE_WAITMEMFALSE 9   // wait for memory contents
 
-#define TXCMD_TYPE_GETPROGID    100 // get programmer ID string (appended after HardwareRXCommand struct)
+#define TXCMD_TYPE_GETPROGID    0xFF // get programmer ID string (appended after HardwareRXCommand struct)
 
-#define RXCMD_STATUS_UNKNOWN    0   // unintialized structure
-#define RXCMD_STATUS_OK         1   // command processed OK
-#define RXCMD_STATUS_FAIL       2   // command failed
-#define RXCMD_PROTOCOL_ERROR    99
-
-#pragma pack(push,1)
-
-
-/** format of packets sent to the hardware interface
-    Note that this data will be encapsulated in a
-    COBS packet. */
-typedef struct
-{
-    uint8_t     cmdType;    // packet command type (see defines)
-    uint32_t    address;    // 32-bit address
-    uint32_t    data;       // reset line state or write register data
-} HardwareTXCommand;
-
-
-/** format of packets received from the hardware interface
-    Note that this data will be encapsulated in a
-    COBS packet. */
-typedef struct
-{
-    uint8_t     status;     // status of communication
-    uint32_t    data;       // read register data
-} HardwareRXCommand;
-
-
-#pragma pack(pop)
+#define RXCMD_STATUS_OK         0   // command OK
+#define RXCMD_STATUS_TIMEOUT    1   // command time out
+#define RXCMD_STATUS_SWDFAULT   2   // SWD fault
+#define RXCMD_STATUS_RXOVERFLOW 3   // RX overflow
+#define RXCMD_STATUS_PROTOERR   4   // Protocol error
+#define RXCMD_STATUS_UNKNOWNCMD 5   // Unknown command
 
 #endif // sentry
 

@@ -10,534 +10,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sstream>
-#include <stdarg.h>
 
+
+#include <QString>
 #include <QCoreApplication>
+#include <QCommandLineParser>
 
 #include "cobs.h"
 #include "hardwareinterface.h"
-
-#include <squirrel.h>
-#include <sqstdblob.h>
-#include <sqstdsystem.h>
-#include <sqstdio.h>
-#include <sqstdmath.h>
-#include <sqstdstring.h>
-#include <sqstdaux.h>
-
-// note: http://wiki.squirrel-lang.org/default.aspx/SquirrelWiki/Embedding%20Getting%20Started.html
-// http://wiki.squirrel-lang.org/default.aspx/SquirrelWiki/SquirrelCallToCpp.html
-
-#ifdef SQUNICODE
-#define scfprintf fwprintf
-#define scvprintf vfwprintf
-#else
-#define scfprintf fprintf
-#define scvprintf vfprintf
-#endif
+#include "squirrel_funcs.h"
 
 #define VERSION "0.1"
 
 // dirty hack ..
 HardwareInterface* g_interface = NULL;
 
-
-void printfunc(HSQUIRRELVM SQ_UNUSED_ARG(v),const SQChar *s,...)
-{
-    va_list vl;
-    va_start(vl, s);
-    scvprintf(stdout, s, vl);
-    va_end(vl);
-    (void)v; /* UNUSED */
-}
-
-void errorfunc(HSQUIRRELVM SQ_UNUSED_ARG(v),const SQChar *s,...)
-{
-    va_list vl;
-    va_start(vl, s);
-    scvprintf(stderr, s, vl);
-    va_end(vl);
-}
-
-void register_global_func(HSQUIRRELVM v, SQFUNCTION f, const char *fname)
-{
-    sq_pushroottable(v);
-    sq_pushstring(v,fname,-1);
-    sq_newclosure(v,f,0);
-    sq_newslot(v,-3,SQFalse);
-    sq_pop(v,1); //pops the root table
-}
-
-void register_global_func(HSQUIRRELVM v, SQFUNCTION f, const char *fname, SQUserPointer *userPtr)
-{
-    sq_pushroottable(v);
-    sq_pushstring(v,fname,-1);
-    sq_pushuserpointer(v, userPtr);
-    sq_newclosure(v,f,1);
-    sq_setparamscheck(v,1,NULL);
-    sq_newslot(v,-3,SQFalse);
-    sq_pop(v,1); //pops the root table
-}
-
-void compile_error_handler(HSQUIRRELVM v, const SQChar* desc, const SQChar* source, SQInteger line, SQInteger column)
-{
-    printf("Error in %s:%d:%d %s\n", source, line, column, desc);
-}
-
-// *****************************************
-// ** CUSTOM SQUIRREL FUNCTIONS
-// *****************************************
-
-SQInteger quit(HSQUIRRELVM v)
-{
-    int *done;
-    sq_getuserpointer(v,-1,(SQUserPointer*)&done);
-    *done=1;
-    return 0;
-}
-
-SQInteger enumerateSerialPorts(HSQUIRRELVM v)
-{
-    HardwareInterface::printInterfaces();
-
-    return 0;   // no arguments are returned.
-}
-
-
-/** Squirrel command: targetReset(int v)
-
-    Sets the state of the target's reset pin.
-
-   */
-SQInteger targetReset(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (nargs != 2)
-        return 0;   // no arguments returned;
-
-    SQInteger vReset;
-    if (SQ_SUCCEEDED(sq_getinteger(v, -1, &vReset)))
-    {
-        if (g_interface != 0)
-        {            
-            //TODO: error checking..
-            g_interface->setTargetReset(vReset > 0);
-        }
-        else
-        {
-            printf("Error: no connection with interface\n");
-        }
-    }
-    return 0;
-}
-
-/** Squirrel command: connect()
-
-    connect to target
-    returns a table:
-      .swdcode - SWD return code
-      .idcode  - the IDCODE of the connected part
-
-   */
-SQInteger targetConnect(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    uint32_t idcode;
-    HWResult result = g_interface->connect(idcode);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("swdcode"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    sq_pushstring(v, _SC("idcode"), -1);
-    sq_pushinteger(v, idcode);
-    sq_newslot(v, -3, SQFalse);
-
-    printf("Connected to target with ID: %08X\n", idcode);
-
-    return 1;   //return one item (table)
-}
-
-
-/** Squirrel command: readDP(address)
-    returns a table:
-      .status - 1 for OK
-      .data   - the data read
-*/
-SQInteger readDP(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    if (nargs != 2)
-    {
-        printf("Incorrect number of arguments\n");
-        return 0;   // no arguments returned;
-    }
-
-    SQInteger address;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
-    {
-        printf("First argument should be an integer");
-        return 0;
-    }
-
-    uint32_t my_data;
-    HWResult result = g_interface->readDP(address, my_data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("status"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    sq_pushstring(v, _SC("data"), -1);
-    sq_pushinteger(v, my_data);
-    sq_newslot(v, -3, SQFalse);
-
-    return 1;   //return one item (table)
-}
-
-/** Squirrel command: writeDP(address)
-    returns a table:
-      .status - 1 for OK
-*/
-SQInteger writeDP(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    if (nargs != 3)
-    {
-        printf("Incorrect number of arguments\n");
-        return 0;   // no arguments returned;
-    }
-
-    SQInteger address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
-    {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
-    {
-        printf("First argument should be an integer");
-        return 0;
-    }
-
-    //printf("%d %d\n", address, data);
-
-    HWResult result = g_interface->writeDP(address, data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("status"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    return 1;   //return one item (table)
-}
-
-
-/** Squirrel command: readAP(address)
-    returns a table:
-      .status - 1 for OK
-      .data   - the data read
-*/
-SQInteger readAP(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    if (nargs != 2)
-    {
-        printf("Incorrect number of arguments\n");
-        return 0;   // no arguments returned;
-    }
-
-    SQInteger address;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
-    {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-
-    uint32_t my_data;
-    HWResult result = g_interface->readAP(address, my_data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("status"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    sq_pushstring(v, _SC("data"), -1);
-    sq_pushinteger(v, my_data);
-    sq_newslot(v, -3, SQFalse);
-
-    return 1;   //return one item (table)
-}
-
-/** Squirrel command: writeAP(address)
-    returns a table:
-      .status - 1 for OK
-*/
-SQInteger writeAP(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    if (nargs != 3)
-    {
-        printf("Incorrect number of arguments\n");
-        return 0;   // no arguments returned;
-    }
-
-    SQInteger address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
-    {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
-    {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-
-    HWResult result = g_interface->writeAP(address, data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("status"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    return 1;   //return one item (table)
-}
-
-
-
-/** Squirrel command: readMemory(address)
-    returns a table:
-      .status - 1 for OK
-      .data   - the data read
-*/
-SQInteger readMemory(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    if (nargs != 2)
-        return 0;   // no arguments returned;
-
-    SQInteger address;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &address)))
-    {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-
-    uint32_t my_data;
-    HWResult result = g_interface->readMemory(address, my_data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("status"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    sq_pushstring(v, _SC("data"), -1);
-    sq_pushinteger(v, my_data);
-    sq_newslot(v, -3, SQFalse);
-
-    return 1;   //return one item (table)
-}
-
-/** Squirrel command: writeMemory(address)
-    returns a table:
-      .status - 1 for OK
-*/
-SQInteger writeMemory(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface == 0)
-    {
-        printf("Error: can't connect - open an interface first!");
-        return 0;
-    }
-
-    if (nargs != 3)
-        return 0;   // no arguments returned;
-
-    SQInteger address, data;
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -1, &data)))
-    {
-        printf("Second argument should be an integer");
-        return 0;
-    }
-    if (!SQ_SUCCEEDED(sq_getinteger(v, -2, &address)))
-    {
-        printf("First argument should be an integer");
-        return 0;
-    }
-
-    HWResult result = g_interface->writeMemory(address, data);
-
-    // create a table as a return argument
-    sq_newtable(v);
-
-    sq_pushstring(v, _SC("status"), -1);
-    sq_pushinteger(v, result);
-    sq_newslot(v, -3, SQFalse);
-
-    return 1;   //return one item (table)
-}
-
-
-/** Squirrel command: <string> getInterfaceName()
-
-    Sets the state of the target's reset pin.
-
-   */
-SQInteger getInterfaceName(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface != 0)
-    {
-        std::string name;
-        if (g_interface->queryInterfaceName(name))
-        {
-            sq_pushstring(v, name.c_str(),-1);
-            return 1; // return one argument
-        }
-        else
-        {
-            //TODO: error reporting?
-        }
-    }
-    else
-    {
-        printf("Error: no connection with interface\n");
-    }
-    return 0; // no return variables
-}
-
-
-
-/** Squirrel command: openInterface(string interfacename) */
-
-SQInteger openInterface(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (nargs != 2)
-        return 0;   // no arguments returned;
-
-    // try to open an interface by integer (windows only)
-    // FIXME: check for win32
-    SQInteger vComport;
-    const char *deviceStrPtr;
-    if (SQ_SUCCEEDED(sq_getinteger(v, -1, &vComport)))
-    {
-        std::stringstream deviceName;
-        deviceName << "\\\\.\\COM" << vComport;
-
-        if (g_interface != 0)
-            delete g_interface;
-
-        g_interface = HardwareInterface::open(deviceName.str().c_str(), 19200);
-
-        if (g_interface == 0)
-            printf("Error: could not open interface %s\n", deviceName.str().c_str());
-        else
-            printf("Interface opened\n");
-    }
-    else if (SQ_SUCCEEDED(sq_getstring(v, -1, &deviceStrPtr)))
-    {
-        if (g_interface != 0)
-            delete g_interface;
-
-        std::string deviceName("/dev/tty.");
-        deviceName.append(deviceStrPtr);
-        g_interface = HardwareInterface::open(deviceName.c_str(), 19200);
-
-        if (g_interface == 0)
-            printf("Error: could not open interface %s\n", deviceName.c_str());
-        else
-            printf("Interface opened\n");
-    }
-    return 0;
-}
-
-/** Squirrel command: closeInterface() */
-
-SQInteger closeInterface(HSQUIRRELVM v)
-{
-    SQInteger nargs = sq_gettop(v);  // get number of arguments
-
-    if (g_interface != 0)
-    {
-        g_interface->close();
-        g_interface = 0;
-        printf("Interface closed\n");
-    }
-    return 0;
-}
-
-bool doScript(HSQUIRRELVM v, const char *fileName)
-{
-    //sq_pushroottable(v);
-
-    if (SQ_SUCCEEDED(sqstd_dofile(v, fileName, SQFalse, SQTrue)))
-    {
-        return true;
-    }
-    return false;
-}
 
 void Interactive(HSQUIRRELVM v)
 {
@@ -612,16 +99,96 @@ void Interactive(HSQUIRRELVM v)
     }
 }
 
+void dumpSerialPortNames()
+{
+    const auto infos = QSerialPortInfo::availablePorts();
+    printf("Available ports:\n");
+    for (const QSerialPortInfo &info : infos)
+    {
+        printf("  %s %s\n", info.portName().toStdString().c_str(), info.description().toStdString().c_str());
+    }
+}
 
 int main(int argc, char *argv[])
 {
     QCoreApplication coreApplication(argc, argv);
+    QCoreApplication::setApplicationName("Swagger");
+    QCoreApplication::setApplicationVersion( VERSION );
 
     HSQUIRRELVM v;
     SQInteger retval = 0;
 
-    COBS::test();
+    QCommandLineParser parser;
+    parser.setApplicationDescription("");
+    parser.addHelpOption();
 
+    // Add -f for binary source file
+    QCommandLineOption binFile(QStringList() << "f" << "file", "file name of firmware (.bin).", "filename");
+    parser.addOption(binFile);
+
+    // Add -p for processor identification
+    QCommandLineOption procType(QStringList() << "p" << "proc", "target processor name.", "processor");
+    parser.addOption(procType);
+
+    // Add -c for com port name
+    QCommandLineOption comPort(QStringList() << "c" << "com", "COM port name.", "comport");
+    parser.addOption(comPort);
+
+    // Add -b for baud rate
+    QCommandLineOption baudrate(QStringList() << "b" << "baud", "Override the baud rate.", "baudrate");
+    parser.addOption(baudrate);
+
+    // Add -D for disable auto-erase
+    QCommandLineOption disableAutoErase(QStringList() << "A" << "disable-erase", "Disable auto-erase.");
+    parser.addOption(disableAutoErase);
+
+    // Add -V for disable auto-erase
+    QCommandLineOption disableVerify(QStringList() << "V" << "disable-verify", "Disable auto-verify.");
+    parser.addOption(disableVerify);
+
+    // Add -v for verbose mode
+    QCommandLineOption verboseMode(QStringList() << "v" << "verbose", "Set to verbose mode.");
+    parser.addOption(verboseMode);
+
+    parser.process(coreApplication);
+
+    if (!parser.isSet(binFile))
+    {
+        fprintf(stderr, "Error: please specify the file to write.\n");
+        parser.showHelp(1);
+    }
+
+    if (!parser.isSet(comPort))
+    {
+        fprintf(stderr, "Error: please specify the COM port to use.\n");
+        parser.showHelp(1);
+    }
+
+    if (!parser.isSet(procType))
+    {
+        fprintf(stderr, "Error: please specify the processor type.\n");
+        parser.showHelp(1);
+    }
+
+    // try to open the COM port interface
+    // and produce an error if we're not able
+    // including a list of possible ports
+
+    std::stringstream deviceName;
+#ifdef _WIN32
+    deviceName << "\\\\.\\COM" << parser.value(comPort).toStdString().c_str();
+#else
+    deviceName << "/dev/tty." << parser.value(comPort).toStdString().c_str();
+#endif
+    g_interface = HardwareInterface::open(deviceName.str().c_str(), 19200);
+    if (g_interface == 0)
+    {
+        fprintf(stderr, "Error: could not open communication port %s!\n\n", deviceName.str().c_str());
+        dumpSerialPortNames();
+        return 1;
+    }
+
+#if 0
     printf("Swagger version " VERSION " "__DATE__"\n");
     printf("Using %s (%d bits)\n",SQUIRREL_VERSION,((int)(sizeof(SQInteger)*8)));
     printf("\nuse:\n");
@@ -633,6 +200,7 @@ int main(int argc, char *argv[])
     printf("  table{.status,data} = readAP/readDP/readMemory (address)\n");
     printf("  table{.status} = writeAP/writeDP/writeMemory (address, data)\n");
     printf("\n");
+#endif
 
     v=sq_open(1024);
     sq_enabledebuginfo(v, SQTrue);
@@ -647,19 +215,11 @@ int main(int argc, char *argv[])
     sqstd_register_stringlib(v);
 
     // register our own functions
-    register_global_func(v, enumerateSerialPorts, _SC("showSerial"));
-
-    register_global_func(v, openInterface, _SC("openInterface"));
-    register_global_func(v, closeInterface, _SC("closeInterface"));
-    register_global_func(v, getInterfaceName, _SC("getInterfaceName"));
-    register_global_func(v, targetConnect, _SC("connect"));
-    register_global_func(v, readAP, _SC("readAP"));
-    register_global_func(v, writeAP, _SC("writeAP"));
-    register_global_func(v, readDP, _SC("readDP"));
-    register_global_func(v, writeDP, _SC("writeDP"));
-    register_global_func(v, readMemory, _SC("readMemory"));
-    register_global_func(v, writeMemory, _SC("writeMemory"));
-    register_global_func(v, targetReset, _SC("targetReset"));
+    register_global_func(v, queueUInt8, _SC("queueUInt8"));
+    register_global_func(v, queueUInt32, _SC("queueUInt32"));
+    register_global_func(v, executeCmdQueue, _SC("executeCmdQueue"));
+    register_global_func(v, popUInt8, _SC("popUInt8"));
+    register_global_func(v, popUInt32, _SC("popUInt32"));
 
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);

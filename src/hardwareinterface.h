@@ -2,7 +2,7 @@
 
   Swagger - A tool for programming ARM processors using the SWD protocol
 
-  Niels A. Moseley
+  Niels A. Moseley (c) Moseley Instruments 2016
 
 */
 
@@ -49,27 +49,6 @@ public:
     /** close the serial port */
     void close();
 
-    /** set the reset pin of the target */
-    virtual bool setTargetReset(bool reset);
-
-    /** connect to the target */
-    virtual HWResult connect(uint32_t &idcode);
-
-    virtual HWResult writeAP(uint32_t address, uint32_t data);
-
-    virtual HWResult writeDP(uint32_t address, uint32_t data);
-
-    virtual HWResult readAP(uint32_t address, uint32_t &data);
-
-    virtual HWResult readDP(uint32_t address, uint32_t &data);
-
-    virtual HWResult writeMemory(uint32_t address, uint32_t data);
-
-    virtual HWResult readMemory(uint32_t address, uint32_t &data);
-
-
-    /** read programmer ID string */
-    virtual HWResult queryInterfaceName(std::string &name);
 
     /** get the last error in human readable form */
     std::string getLastError() const
@@ -77,11 +56,13 @@ public:
         return m_lastError;
     }
 
-protected:
-    //bool writePacket(const std::vector<uint8_t> &data);
-    bool writePacket(const void* data, size_t bytes);
+    /** write packet to the hardware interface */
+    bool writePacket(const std::vector<uint8_t> &data);
+
+    /** read packet from the hardware interface */
     bool readPacket(std::vector<uint8_t> &data);
 
+protected:
     void printPacket(const std::vector<uint8_t> &data);
 
     HardwareInterface(const char *comport, uint32_t baudrate);
