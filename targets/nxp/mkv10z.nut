@@ -8,78 +8,6 @@
 //                      Best Practices for Kinetis K- and L-series MCUs
 //
 
-const MDM_AP_STAT   = 0x01000000;   // debug status
-const MDM_AP_CTRL   = 0x01000004;   // debug control
-const MDM_AP_IDR    = 0x010000FC;   // debug ID
-
-const MDM_CTRL_FLASHERASE   = 0x01; // flash erase in progress
-const MDM_CTRL_DEBUGDIS     = 0x02; // debug disable
-const MDM_CTRL_DEBUGREQ     = 0x04; // debug request
-const MDM_CTRL_SYSRESETREQ  = 0x08; // system reset request
-const MDM_CTRL_COREHOLD     = 0x10; // hold core just after reset
-
-const MDM_STAT_FLASHACK     = 0x0001;   // flash mass erase ack
-const MDM_STAT_FLASHREADY   = 0x0002;   // flash ready
-const MDM_STAT_SYSSECURITY  = 0x0004;   // system security
-const MDM_STAT_SYSRESET_N   = 0x0008;   // systtem reset state (active low)
-const MDM_STAT_MASSERASE    = 0x0020;   // mass erase enable
-const MDM_STAT_BACKDOOR     = 0x0040;   // backdoor access key enable
-const MDM_STAT_LPENABLE     = 0x0080;   // low power stop mode enabled
-const MDM_STAT_VLPM         = 0x0100;   // very low power mode active
-const MDM_STAT_COREHALTED   = 0x010000;   
-const MDM_STAT_SLEEPDEEP    = 0x020000;
-const MDM_STAT_SLEEPING     = 0x040000;
-
-const SCS_SHCSR             = 0xE000ED24;   // System handler control and state 
-const SCS_DFSR              = 0xE000ED30;   // Debug fault status register
-const SCS_DHCSR             = 0xE000EDF0;   // Debug halting control and status
-const SCS_DCRSR             = 0xE000EDF4;   // Debug core register selector
-const SCS_DCRDR             = 0xE000EDF8;   // Debug core data register
-const SCS_DEMCR             = 0xE000EDFC;   // Debug exception monitor ctrl reg
-
-const DHCSR_DBGKEY          = 0xA05F0000;   // upper 16 bits of key
-const C_DEBUGEN             = 0x00000001;   // DHCSR debug enable bit
-const C_HALT                = 0x00000002;   // DHCSR halt core
-const C_STEP                = 0x00000004;   // DHCSR single step mode
-const C_MASKINTS            = 0x00000008;   // DHCSR mask external ints
-const S_REGRDY              = 0x00010000;   // DHCSR register ready bit
-const S_HALT                = 0x00020000;   // DHCSR halt status bit
-const S_RETIRE_ST           = 0x01000000;   // DHCSR instruction retired bit
-const S_RESET_ST            = 0x02000000;   // DHCSR core reset status (sticky)
-
-const DCRSR_WRITE       = 0x00010000;   // core register write enable
-
-const DCRSR_REG_SP      = 0x0D;
-const DCRSR_REG_LR      = 0x0E;
-const DCRSR_REG_DBGRET  = 0x0F;
-const DCRSR_REG_PSRFLAG = 0x10;
-const DCRSR_REG_MSP     = 0x11;
-const DCRSR_REG_PSP     = 0x12;
-const DCRSR_REG_IPSR    = 0x17;
-const DCRSR_REG_CONTROL = 0x1B;
-
-const SIM_FCFG1         = 0x4004804C;       // flash configuration reg 1
-const SIM_FCFG2         = 0x40048050;       // flash configuration reg 2
-
-const SIM_SCGC6         = 0x4004803C;       // clock config reg 6
-const SCGC6_FTF         = 0x1;              // flash clock gating bit
-
-const FTFA_FSTAT        = 0x40020000;       // flash status register (8 bits!)
-const FTFA_FCNFG        = 0x40020001;       // flash config register (8 bits!)
-const FTFA_FSEC         = 0x40020002;
-const FTFA_FOPT         = 0x40020003;
-const FTFA_FCCOB_BASE   = 0x40020004;
-const FTFA_PROTADDR     = 0x0408;          // flash protection bits
-
-const FSTAT_CCIF        = 0x80;
-const FSTAT_RDCOLERR    = 0x40;
-const FSTAT_ACCERR      = 0x20;
-const FSTAT_FPVIOL      = 0x10;
-const FSTAT_MGSTAT0     = 0x01;
-
-const MCM_PLACR         = 0xF000300C;       // Platform Control Register
-const PLACR_ESFC        = 0x00010000;       // flash stall enable_n
-
 class TargetKV10Z extends TargetBase
 {
 
@@ -116,25 +44,7 @@ class TargetKV10Z extends TargetBase
         
         return 0;
     }
-
-    function readCoreRegister(regID)
-    {
-        // NOTE: system must be in debug mode!
-        // first request a register read
-        // then read it!
-        writeMemory(SCS_DCRSR, regID);        
-        return readMemory(SCS_DCRDR);
-    }
-    
-    function writeCoreRegister(regID, value)
-    {
-        // NOTE: system must be in debug mode!
-        // first write the register value
-        // then request a register write
-        writeMemory(SCS_DCRDR, value);        
-        return writeMemory(SCS_DCRSR, (regID & 0x1F) | DCRSR_WRITE);
-    }    
-    
+     
     function showRegisters()
     {
         // check for halt

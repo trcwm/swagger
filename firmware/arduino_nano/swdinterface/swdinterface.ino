@@ -304,12 +304,12 @@ void loop()
             }
             break;           
           case TXCMD_TYPE_READAP:
-            address = ptr[1];
+            address = getUInt32(ptr+1);
             stat = g_interface->readAP(address, data32);
             if (stat == RXCMD_STATUS_OK)
             {
               queueReplyUInt32(data32);
-              ptr+=2;    // 1 cmd byte, 1 byte address
+              ptr+=5;    // 1 cmd byte, 1 32-bit word address
             }
             else
             {
@@ -318,12 +318,12 @@ void loop()
             }
             break;
           case TXCMD_TYPE_WRITEAP:
-            address = ptr[1];
-            data32 = getUInt32(ptr+2);
+            address = getUInt32(ptr+1);
+            data32 = getUInt32(ptr+5);
             stat = g_interface->writeAP(address, data32);
             if (stat == RXCMD_STATUS_OK)
             {
-              ptr+=6;    // 1 cmd byte, 1 byte address, 1 32-bit word
+              ptr+=9;    // 1 cmd byte, 2 32-bit words
             }
             else
             {

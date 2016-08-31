@@ -44,8 +44,8 @@ All host packets have the following layout (before COBS encoding, excluding the 
 |--------|---------------|----------------------------------------------------------------|
 | 0x00   | CONNECT | _none_ | < idcode:u32 > |
 | 0x01   | RESET | < state:u8 > | _none_ |
-| 0x02   | READ ACCESS PORT  | < portNum:u8 > | < value:u32 > |
-| 0x03   | WRITE ACCESS PORT  | < portNum:u8 > < value:u32 > | _none_ |
+| 0x02   | READ ACCESS PORT  | < portNum:u32 > | < value:u32 > |
+| 0x03   | WRITE ACCESS PORT  | < portNum:u32 > < value:u32 > | _none_ |
 | 0x04   | READ DEBUG PORT  | < portNum:u8 >  | < value:u32 > |
 | 0x05   | WRITE DEBUG PORT  | < portNum:u8 > < value:u32 > | _none_ |
 | 0x06   | READ MEMORY  | < addr:u32 >  | < value:u32 > |

@@ -25,20 +25,26 @@ debug <- 3;         // set the debug level
 // *************************************
 // initialize system 
 // *************************************
-try
-{    
-    dofile("..\\targets\\logging.nut");
-    
-    logmsg(LOG_DEBUG, "Initializing...\n");
-    
-    dofile("..\\targets\\utils.nut");
-    dofile("..\\targets\\targetfuncs.nut");
-    dofile("..\\targets\\targets.nut");    
-    dofile("..\\targets\\nxp\\mkv10z.nut");
-    dofile("..\\targets\\nxp\\lpc13.nut");
-    print("targets loaded!\n");
-}
-catch(error)
+function initSystem()
 {
-    print("Error: " + error);
+    try
+    {    
+        dofile("..\\targets\\logging.nut");
+        
+        logmsg(LOG_DEBUG, "Initializing...\n");
+        
+        dofile("..\\targets\\utils.nut");
+        dofile("..\\targets\\targetfuncs.nut");
+        dofile("..\\targets\\targets.nut");
+        dofile("..\\targets\\nxp\\kinetis.nut");
+        dofile("..\\targets\\nxp\\mkv10z.nut");
+        dofile("..\\targets\\nxp\\lpc13.nut");
+        print("targets loaded!\n");
+    }
+    catch(error)
+    {
+        print("Error: " + error);
+    }
 }
+
+initSystem();
