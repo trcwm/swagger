@@ -220,10 +220,14 @@ int main(int argc, char *argv[])
     register_global_func(v, executeCmdQueue, _SC("executeCmdQueue"));
     register_global_func(v, popUInt8, _SC("popUInt8"));
     register_global_func(v, popUInt32, _SC("popUInt32"));
+    register_global_func(v, dumpCmdQueue, _SC("dumpCmdQueue"));
+    register_global_func(v, clearCmdQueue, _SC("clearCmdQueue"));
+    register_global_func(v, dumpResultQueue, _SC("dumpResultQueue"));
+    register_global_func(v, printLastPacketError, _SC("printLastPacketError"));
 
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);
-    if (!doScript(v, "..\\targets\\targets.nut"))
+    if (!doScript(v, "..\\targets\\init.nut"))
     {
         printf("Cannot execute targets.nut script!\n");
     }

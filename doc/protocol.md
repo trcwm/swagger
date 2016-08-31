@@ -51,7 +51,6 @@ All host packets have the following layout (before COBS encoding, excluding the 
 | 0x06   | READ MEMORY  | < addr:u32 >  | < value:u32 > |
 | 0x07   | WRITE MEMORY  | < addr:u32 >  < value:u32 >| _none_ |
 | 0x08   | WAIT MEMORY TRUE | < addr:u32 >  < value:u32 > < mask:u32 >| < result:u8 > |
-| 0x09   | WAIT MEMORY FALSE | < addr:u32 >  < value:u32 > < mask:u32 >| < result:u8 > |
 | 0xFF   | GET INTERFACE INFO | _none_ | < protoVer:u8 > < rxBufSize:u16 > |
 
 ###Execution of commands

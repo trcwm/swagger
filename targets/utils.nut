@@ -10,10 +10,6 @@
 // global constants
 const MAX_RETRIES = 100;
 
-const LOG_ERROR     = 0;
-const LOG_WARNING   = 1;
-const LOG_DEBUG     = 2;
-
 const DP_IDCODE     = 0x00; // read only
 const DP_ABORT      = 0x00; // write only
 const DP_CTRLSTAT   = 0x04; // control/status register
@@ -26,12 +22,6 @@ const AHB_AP_DATA   = 0x0000000C;
 const AHB_AP_ROMTBL = 0x000000F8;
 const AHB_AP_IDR    = 0x000000FC;
 
-// logging/debug function
-function logmsg(level, str)
-{
-    if (::debug >= level)
-        print(str)
-}
 
 // *********************************************************
 //   Specific functions
@@ -106,11 +96,4 @@ function clearStickyErrors()
     return writeDP(DP_ABORT, 1+2+4+8+16);
 }
 
-// initialize the processor
-function init()
-{
-    dofile("..//targets//targets.nut");
-    connect();
-    clearStickyErrors();
-    enableDebugPower();
-}
+logmsg(LOG_DEBUG, "Loaded utils.nut\n");

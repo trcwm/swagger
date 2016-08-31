@@ -76,12 +76,19 @@ SQInteger queueUInt8(HSQUIRRELVM v)
     SQInteger nargs = sq_gettop(v);  // get number of arguments
 
     if (nargs != 2)
+    {
+        printf("Error: queueUint8 does not have enough parameters\n");
         return 0;   // error, not enough
+    }
 
     SQInteger byte;
     if (SQ_SUCCEEDED(sq_getinteger(v, -1, &byte)))
     {
         g_cmdQueue.push_back(byte);
+    }
+    else
+    {
+        printf("Error: queueUint8 parameter is not an integer\n");
     }
     return 0;   // no parameters returned
 }
@@ -93,7 +100,10 @@ SQInteger queueUInt32(HSQUIRRELVM v)
     SQInteger nargs = sq_gettop(v);  // get number of arguments
 
     if (nargs != 2)
+    {
+        printf("Error: queueUint32 does not have enough parameters\n");
         return 0;   // error, not enough
+    }
 
     SQInteger word;
     if (SQ_SUCCEEDED(sq_getinteger(v, -1, &word)))
@@ -102,6 +112,10 @@ SQInteger queueUInt32(HSQUIRRELVM v)
         g_cmdQueue.push_back((word>>8) & 0xFF);
         g_cmdQueue.push_back((word>>16) & 0xFF);
         g_cmdQueue.push_back((word>>24) & 0xFF);
+    }
+    else
+    {
+        printf("Error: queueUint32 parameter is not an integer\n");
     }
     return 0;   // no parameters returned
 }
@@ -113,12 +127,18 @@ SQInteger executeCmdQueue(HSQUIRRELVM v)
     // no arguments required
     if (g_interface->writePacket(g_cmdQueue)==false)
     {
+        printf("Error: writePacket %s\n", g_interface->getLastError().c_str());
+        sq_pushinteger(v, 1);
         // error transmitting
     }
+    g_resultQueue.clear();
     if (g_interface->readPacket(g_resultQueue)==false)
     {
+        printf("Error: readPacket %s\n", g_interface->getLastError().c_str());
+        sq_pushinteger(v, 2);
         // error receiving
     }
+    sq_pushinteger(v, 0);
     return 1;   // result code
 }
 
@@ -126,10 +146,10 @@ SQInteger executeCmdQueue(HSQUIRRELVM v)
 /** Squirrel command: pop uint8_t from result queue */
 SQInteger popUInt8(HSQUIRRELVM v)
 {
-    if (g_cmdQueue.size() > 0)
+    if (g_resultQueue.size() > 0)
     {
-        uint8_t byte = g_cmdQueue.front();
-        g_cmdQueue.erase(g_cmdQueue.begin());
+        uint8_t byte = g_resultQueue.front();
+        g_resultQueue.erase(g_resultQueue.begin());
         sq_pushinteger(v, byte);
     }
     else
@@ -143,18 +163,18 @@ SQInteger popUInt8(HSQUIRRELVM v)
 /** Squirrel command: pop uint32_t from result queue */
 SQInteger popUInt32(HSQUIRRELVM v)
 {
-    if (g_cmdQueue.size() > 3)
+    if (g_resultQueue.size() > 3)
     {
         // FIXME: ugly code, would be better with an operation
         // that does not require freeing memory
-        uint32_t word = (uint32_t)g_cmdQueue.front();   // LSB first
-        g_cmdQueue.erase(g_cmdQueue.begin());
-        word |= ((uint32_t)g_cmdQueue.front()) << 8;
-        g_cmdQueue.erase(g_cmdQueue.begin());
-        word |= ((uint32_t)g_cmdQueue.front()) << 16;
-        g_cmdQueue.erase(g_cmdQueue.begin());
-        word |= ((uint32_t)g_cmdQueue.front()) << 24;
-        g_cmdQueue.erase(g_cmdQueue.begin());
+        uint32_t word = (uint32_t)g_resultQueue.front();   // LSB first
+        g_resultQueue.erase(g_resultQueue.begin());
+        word |= ((uint32_t)g_resultQueue.front()) << 8;
+        g_resultQueue.erase(g_resultQueue.begin());
+        word |= ((uint32_t)g_resultQueue.front()) << 16;
+        g_resultQueue.erase(g_resultQueue.begin());
+        word |= ((uint32_t)g_resultQueue.front()) << 24;
+        g_resultQueue.erase(g_resultQueue.begin());
         sq_pushinteger(v, word);
     }
     else
@@ -162,6 +182,44 @@ SQInteger popUInt32(HSQUIRRELVM v)
         sq_pushinteger(v, 0);
     }
     return 1;
+}
+
+SQInteger dumpCmdQueue(HSQUIRRELVM v)
+{
+    uint32_t N=g_cmdQueue.size();
+    printf("Command queue size = %d bytes\n", N);
+    for(uint32_t i=0; i<N; i++)
+    {
+        printf(" %02X", g_cmdQueue[i]);
+    }
+    printf("\n");
+    return 0;
+}
+
+SQInteger printLastPacketError(HSQUIRRELVM v)
+{
+    if (g_interface != 0)
+        printf("%s\n", g_interface->getLastError().c_str());
+    return 0;
+}
+
+
+SQInteger dumpResultQueue(HSQUIRRELVM v)
+{
+    uint32_t N=g_resultQueue.size();
+    printf("Result queue size = %d bytes\n", N);
+    for(uint32_t i=0; i<N; i++)
+    {
+        printf(" %02X", g_resultQueue[i]);
+    }
+    printf("\n");
+    return 0;
+}
+
+SQInteger clearCmdQueue(HSQUIRRELVM v)
+{
+    g_cmdQueue.clear();
+    return 0;
 }
 
 

@@ -23,15 +23,8 @@
 // *************************************
 // global variables
 // *************************************
-
-debug <- 3;         // set the debug level
 targets <- [];      // create an empty targets array
 targetIDx <- -1;    // current target in use, -1 if none selected
-
-// SWD return codes
-STAT_OK <- 1
-STAT_WAIT <- 2
-STAT_FAULT <- 4
 
 // *************************************
 // Target baseclass
@@ -89,8 +82,6 @@ class TargetBase
     {
         return idcode;
     }
-    
-
 }
 
 // *************************************
@@ -106,18 +97,4 @@ function registerTarget(target_info)
     ::targets.append(target_info);
 }
 
-// *************************************
-// execute part of script
-// *************************************
-
-try
-{
-    dofile("..\\targets\\utils.nut");
-    dofile("..\\targets\\nxp\\mkv10z.nut");
-    dofile("..\\targets\\nxp\\lpc13.nut");
-    print("targets loaded!\n");
-}
-catch(error)
-{
-    print("Error: " + error);
-}
+logmsg(LOG_DEBUG, "Loaded targets.nut\n");

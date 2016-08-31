@@ -40,24 +40,31 @@ ArduinoSWDInterface *g_interface = 0;
 // *********************************************************
 //   COBS decoder (source: wikipedia)
 //
-//   Appends a zero terminator byte at the end of the 
-//   decoded result
+//   Returns the number of bytes decoded.
+//
 // *********************************************************
 
-void UnStuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
+uint32_t UnStuffData(const uint8_t *ptr, uint8_t N, uint8_t *dst)
 {
-  const uint8_t *endptr = ptr + N - 1;  // minus one for terminator byte
+  uint32_t bytes = 0;
+  const uint8_t *endptr = ptr + N;
   while (ptr < endptr)
   {
     uint8_t code = *ptr++;
-
+    
     for (uint32_t i=1; (ptr<endptr) && (i<code); i++)
+    {
       *dst++ = *ptr++;
+      bytes++;
+    }
       
     if (code < 0xFF)
+    {
       *dst++ = 0;
+      bytes++;
+    }
   }
-  *dst++ = 0;
+  return bytes;
 }
 
 // *********************************************************
@@ -181,10 +188,16 @@ void setup()
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
   digitalWrite(SWDDAT_PIN, HIGH);
+  digitalWrite(RESET_PIN, HIGH);
+  digitalWrite(GND_PIN, LOW);
   pinMode(SWDCLK_PIN, OUTPUT);
   pinMode(SWDDAT_PIN, OUTPUT);
+  pinMode(RESET_PIN, OUTPUT);
 
   g_interface = new ArduinoSWDInterface();
+
+  pinMode(GND_PIN, OUTPUT);
+  digitalWrite(GND_PIN, LOW);
 }
 
 void loop() 
@@ -207,151 +220,160 @@ void loop()
         g_rxidx = 0; // avoid buffer overrun
         sendReply(RXCMD_STATUS_RXOVERFLOW);
         return;
-      }  
+      }
+      g_rxbuffer[g_rxidx++] = byteRead;
     }    
     else
-    {
+    {      
       digitalWrite(13, HIGH);
       
       //decode COBS packet      
       uint8_t decodebuffer[sizeof(g_rxbuffer)]; // decode bytes is always less than encoded bytes..
-      UnStuffData(g_rxbuffer, g_rxidx, decodebuffer);
-
-      if (decodebuffer[0] == 0)
-      {
-        // we reached the end of the command buffer
-        // so we reply.
-        sendReply(RXCMD_STATUS_OK);          
-        return;
-      }
-      
-      // execute command
-      uint32_t data32, address;
-      uint8_t data8;
-      bool stat;
+      uint32_t bytes = UnStuffData(g_rxbuffer, g_rxidx, decodebuffer);
+      bytes--; // remove the zero terminator to avoid triggering additional commands..       
       uint8_t *ptr = (uint8_t*)decodebuffer;
-      switch(ptr[0])
-      {          
-        default:  // unknown command, abort & send reply
-          sendReply(RXCMD_STATUS_UNKNOWNCMD);            
-          return;
-        case TXCMD_TYPE_RESET:
-          // read desired state of status pin
-          data8 = ptr[1];
-          ptr += 2;
-          break;
-        case TXCMD_TYPE_CONNECT:
-          stat = g_interface->tryConnect(data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            queueReplyUInt32(data32); // IDCODE
+      uint8_t *endptr = ((uint8_t*)decodebuffer) + bytes;
+      g_rxidx = 0;
+
+#if 0
+      g_txidx = 1;
+      for(uint32_t i=0; i<g_rxidx; i++)
+      {
+        queueReplyUInt8(g_rxbuffer[i]);
+      }
+      sendReply(RXCMD_STATUS_SWDFAULT);
+      g_rxidx = 0; // clear RX buffer
+#endif      
+
+      while(ptr < endptr)
+      {      
+        // execute command
+        uint32_t data32, address;
+        uint8_t data8;
+        uint8_t stat;        
+        switch(ptr[0])
+        {          
+          default:  // unknown command, abort & send reply
+            queueReplyUInt32(0xDEADBEEF);
+            sendReply(RXCMD_STATUS_UNKNOWNCMD);
+            return;
+          case TXCMD_TYPE_RESET:
+            // set target reset
+            g_interface->setReset(ptr[1] > 0);
+            ptr += 2;
+            break;
+          case TXCMD_TYPE_CONNECT:
+            stat = g_interface->tryConnect(data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              ptr++;              
+              queueReplyUInt32(data32); // IDCODE              
+            }
+            else
+            {
+              sendReply(stat);
+              return;
+            }
+            break;
+          case TXCMD_TYPE_READDP:
+            address = ptr[1];
+            stat = g_interface->readDP(address, data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              queueReplyUInt32(data32);
+              ptr+=2;
+            }
+            else
+            {
+              sendReply(stat);
+              return;
+            }
+            break;
+          case TXCMD_TYPE_WRITEDP:
+            address = ptr[1];
+            data32 = getUInt32(ptr+2);
+            stat = g_interface->writeDP(address, data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              ptr+=6;    // 1 cmd byte, 1 byte address, 1 32-bit word
+            }
+            else
+            {
+              sendReply(stat);
+              return;
+            }
+            break;           
+          case TXCMD_TYPE_READAP:
+            address = ptr[1];
+            stat = g_interface->readAP(address, data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              queueReplyUInt32(data32);
+              ptr+=2;    // 1 cmd byte, 1 byte address
+            }
+            else
+            {
+              sendReply(stat);
+              return;
+            }
+            break;
+          case TXCMD_TYPE_WRITEAP:
+            address = ptr[1];
+            data32 = getUInt32(ptr+2);
+            stat = g_interface->writeAP(address, data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              ptr+=6;    // 1 cmd byte, 1 byte address, 1 32-bit word
+            }
+            else
+            {
+              sendReply(stat);
+              return;
+            }
+            break;
+          case TXCMD_TYPE_READMEM:
+            address = getUInt32(ptr+1);
+            stat = g_interface->readMemory(address, data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              queueReplyUInt32(data32);
+              ptr+=6;    // 1 cmd byte, 1 32-bit address
+            }
+            else
+            {
+              sendReply(stat);
+              return;
+            }
+            break;
+          case TXCMD_TYPE_WRITEMEM:
+            address = getUInt32(ptr+1);
+            data32 = getUInt32(ptr+5);
+            stat = g_interface->writeMemory(address, data32);
+            if (stat == RXCMD_STATUS_OK)
+            {
+              ptr+=9;    // 1 cmd byte, 1 32-bit address, 1 32-bit data
+            }
+            else
+            {
+              sendReply(stat);
+              g_rxidx = 0;
+              return;
+            }
+            break;
+          case TXCMD_TYPE_GETPROGID:
+            // get the programmer ID
+            queueReplyUInt8(0x01);                  // protocol version
+            queueReplyUInt8(sizeof(g_rxbuffer));    // rx buffer size
+            queueReplyUInt8(0);                     // rx buffer size (MSB)
             ptr++;
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;
-        case TXCMD_TYPE_READDP:
-          address = ptr[1];
-          stat = g_interface->readDP(address, data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            queueReplyUInt32(data32);
-            ptr+=2;
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;
-        case TXCMD_TYPE_WRITEDP:
-          address = ptr[1];
-          data32 = getUInt32(ptr+2);
-          stat = g_interface->writeDP(address, data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            ptr+=6;    // 1 cmd byte, 1 byte address, 1 32-bit word
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;           
-        case TXCMD_TYPE_READAP:
-          address = ptr[1];
-          stat = g_interface->readAP(address, data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            queueReplyUInt32(data32);
-            ptr+=2;    // 1 cmd byte, 1 byte address
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;
-        case TXCMD_TYPE_WRITEAP:
-          address = ptr[1];
-          data32 = getUInt32(ptr+2);
-          stat = g_interface->writeAP(address, data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            ptr+=6;    // 1 cmd byte, 1 byte address, 1 32-bit word
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;
-        case TXCMD_TYPE_READMEM:
-          address = getUInt32(ptr+1);
-          stat = g_interface->readMemory(address, data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            queueReplyUInt32(data32);
-            ptr+=6;    // 1 cmd byte, 1 32-bit address
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;
-        case TXCMD_TYPE_WRITEMEM:
-          address = getUInt32(ptr+1);
-          data32 = getUInt32(ptr+5);
-          stat = g_interface->writeMemory(address, data32);
-          if (stat == RXCMD_STATUS_OK)
-          {
-            ptr+=9;    // 1 cmd byte, 1 32-bit address, 1 32-bit data
-          }
-          else
-          {
-            sendReply(stat);
-            g_rxidx = 0;
-            return;
-          }
-          break;
-        case TXCMD_TYPE_GETPROGID:
-          // get the programmer ID
-          queueReplyUInt8(0x01);                  // protocol version
-          queueReplyUInt8(sizeof(g_rxbuffer));    // rx buffer size
-          queueReplyUInt8(0);                     // rx buffer size (MSB)
-          ptr++;
-          break;
-      } // end switch      
+            break;
+        } // end switch      
+      } // end while
+      
+      // if we end up here, everything worked out
+      // and we can reply
+      sendReply(RXCMD_STATUS_OK);     
+       
     } // byte zero read
   } // while serial available
 }

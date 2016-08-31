@@ -89,13 +89,19 @@ bool HardwareInterface::writePacket(const std::vector<uint8_t> &data)
         return false;
     }
 
+    if (m_debug)
+    {
+        printf("TX ");
+        printPacket(data);
+    }
+
     // do COBS encoding
     std::vector<uint8_t> cobsbuffer;
     if (COBS::encode(data, cobsbuffer))
     {
         if (m_debug)
         {
-            printf("TX ");
+            printf("TX (COBS) ");
             printPacket(cobsbuffer);
         }
         if (m_port.write((const char*)&cobsbuffer[0], cobsbuffer.size()) != cobsbuffer.size())
@@ -148,7 +154,7 @@ bool HardwareInterface::readPacket(std::vector<uint8_t> &data)
 
     if (m_debug)
     {
-        printf("RX ");
+        printf("RX (COBS) ");
         printPacket(rxbuffer);
     }
 

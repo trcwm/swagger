@@ -48,7 +48,6 @@
 #define TXCMD_TYPE_READMEM      6   // read a memory address
 #define TXCMD_TYPE_WRITEMEM     7   // write to a memory address
 #define TXCMD_TYPE_WAITMEMTRUE  8   // wait for memory contents
-#define TXCMD_TYPE_WAITMEMFALSE 9   // wait for memory contents
 
 #define TXCMD_TYPE_GETPROGID    0xFF // get programmer ID string (appended after HardwareRXCommand struct)
 

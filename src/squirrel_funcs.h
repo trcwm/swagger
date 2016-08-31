@@ -67,6 +67,18 @@ SQInteger popUInt8(HSQUIRRELVM v);
 /** Squirrel command: pop uint32_t from result queue */
 SQInteger popUInt32(HSQUIRRELVM v);
 
+/** Squirrel command: dump the current command queue */
+SQInteger dumpCmdQueue(HSQUIRRELVM v);
+
+/** Squirrel command: clear the command queue */
+SQInteger clearCmdQueue(HSQUIRRELVM v);
+
+/** Squirrel command: dump the current result queue */
+SQInteger dumpResultQueue(HSQUIRRELVM v);
+
+/** Squirrel command: print the last logged error in packet system */
+SQInteger printLastPacketError(HSQUIRRELVM v);
+
 /** Execute a squirrel script */
 bool doScript(HSQUIRRELVM v, const char *fileName);
 
