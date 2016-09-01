@@ -45,23 +45,7 @@ class TargetKV10Z extends TargetBase
         return 0;
     }
      
-    function showRegisters()
-    {
-        // check for halt
-        local retval = readAP(MDM_AP_STAT);
-        if (retval.data & MDM_STAT_COREHALTED)
-        {
-            // yes, halted
-            for(local i=0; i<16; i+=1)
-            {
-                print(format("r%d = %08X\n", i, readCoreRegister(i).data));
-            }
-        }
-        else
-        {
-            logmsg(LOG_ERROR, "Error: core not halted\n");
-        }
-    }
+
     
     function rresume()
     {
@@ -81,46 +65,7 @@ class TargetKV10Z extends TargetBase
 
     function halt()
     {
-        // enable power to the debug system / core
-        enableDebugPower();
-        
-        // setup debug mode through SCS
-        local retval = writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
-        if (retval.status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Write memory failed\n");
-            return -1;            
-        }
-                         
-        // release the system reset and enter debug mode
-        retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
-        if (retval.status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Reset release failed\n");
-            return -1;
-        }
-        
-        // check if we've entered debug mode
-        retval = readAP(MDM_AP_STAT);
-        if (retval.status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Checking for debug mode failed\n");
-            return -1;
-        }
-        if (retval.data & MDM_STAT_COREHALTED)
-        {
-            logmsg(LOG_DEBUG, "Entered debug mode - core halted!\n");
-            logmsg(LOG_DEBUG, format("PC  = %08X\n", readCoreRegister(15).data));
-            logmsg(LOG_DEBUG, format("MSP = %08X\n", readCoreRegister(DCRSR_REG_MSP).data));
-            
-        }
-        else
-        {
-            logmsg(LOG_ERROR, "Entering debug mode failed - core not halted\n");
-            return -1;
-        }        
-        
-        return 0;  // OK!
+        return kinetis_mdm_halt()
     }
 
     // check the state of target reset
@@ -454,32 +399,7 @@ class TargetKV10Z extends TargetBase
         myfile.close();
     }
     
-    function flash_compare()
-    {
-        local myfile = file("cyclotron.bin","rb");   
-        local myblob = myfile.readblob(myfile.len());        
-        print(format("Binary data is %d bytes\n", myblob.len()));
-                
-        local idx = 0;
-        while(idx < myblob.len())
-        {
-            local word = myblob.readn('i');
-            local flw  = readMemory(idx).data;
-            if (flw != word)
-            {
-                print(format("(%08X) <- %08X\n", idx, word));
-                return -1;
-            }
-            else
-            {
-                print(format("(%08X) <- %08X OK!\n", idx, word));
-            }
-            idx += 4;
-        }
-        
-        myfile.close();
-    }    
-    
+
     function ftest()
     {
         local myfile = file("stubby.bin","rb");   

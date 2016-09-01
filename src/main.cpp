@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
     parser.addOption(comPort);
 
     // Add -b for baud rate
-    QCommandLineOption baudrate(QStringList() << "b" << "baud", "Override the baud rate.", "baudrate");
+    QCommandLineOption baudrate(QStringList() << "b" << "baud", "Override the baud rate.", "baudrate", "57600");
     parser.addOption(baudrate);
 
     // Add -D for disable auto-erase
@@ -180,7 +180,16 @@ int main(int argc, char *argv[])
 #else
     deviceName << "/dev/tty." << parser.value(comPort).toStdString().c_str();
 #endif
-    g_interface = HardwareInterface::open(deviceName.str().c_str(), 19200);
+
+    bool ok = false;
+    uint32_t baud = parser.value(baudrate).toInt(&ok);
+    if (!ok)
+    {
+        printf("Baudrate %s is not an integer!", qPrintable(parser.value(baudrate)));
+        return 1;
+    }
+
+    g_interface = HardwareInterface::open(deviceName.str().c_str(), baud);
     if (g_interface == 0)
     {
         fprintf(stderr, "Error: could not open communication port %s!\n\n", deviceName.str().c_str());
@@ -225,8 +234,13 @@ int main(int argc, char *argv[])
     register_global_func(v, dumpResultQueue, _SC("dumpResultQueue"));
     register_global_func(v, printLastPacketError, _SC("printLastPacketError"));
 
+    // pass on command line parameters to squirrel environment
+    createStringVariable(v,"procType",qPrintable(parser.value(procType)));
+    createStringVariable(v,"binFile",qPrintable(parser.value(binFile)));
+
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);
+
     if (!doScript(v, "..\\targets\\init.nut"))
     {
         printf("Cannot execute targets.nut script!\n");

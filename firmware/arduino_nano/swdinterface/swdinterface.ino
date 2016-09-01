@@ -20,10 +20,12 @@
 
 #define LEDPIN 13
 
-uint8_t g_rxbuffer[32]; // packet receive buffer
+const uint32_t MAX_RETRIES = 100;
+
+uint8_t g_rxbuffer[64]; // packet receive buffer
 uint8_t g_rxidx = 0;    // read index into receive buffer
 
-uint8_t g_txbuffer[32]; // packet transmit buffer
+uint8_t g_txbuffer[64]; // packet transmit buffer
 uint8_t g_txidx = 1;    // write index into transmit buffer,
                         // leave room for status byte at
                         // the beginning so it can be
@@ -184,7 +186,7 @@ void sendReply(uint8_t replyStatus)
 void setup() 
 {
   // put your setup code here, to run once:
-  Serial.begin(19200);
+  Serial.begin(57600);
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
   digitalWrite(SWDDAT_PIN, HIGH);
@@ -235,22 +237,11 @@ void loop()
       uint8_t *endptr = ((uint8_t*)decodebuffer) + bytes;
       g_rxidx = 0;
 
-#if 0
-      g_txidx = 1;
-      for(uint32_t i=0; i<g_rxidx; i++)
-      {
-        queueReplyUInt8(g_rxbuffer[i]);
-      }
-      sendReply(RXCMD_STATUS_SWDFAULT);
-      g_rxidx = 0; // clear RX buffer
-#endif      
-
       while(ptr < endptr)
       {      
         // execute command
-        uint32_t data32, address;
-        uint8_t data8;
-        uint8_t stat;        
+        uint32_t data32, address, mask32, retries;
+        uint8_t data8, stat;
         switch(ptr[0])
         {          
           default:  // unknown command, abort & send reply
@@ -337,7 +328,7 @@ void loop()
             if (stat == RXCMD_STATUS_OK)
             {
               queueReplyUInt32(data32);
-              ptr+=6;    // 1 cmd byte, 1 32-bit address
+              ptr+=5;    // 1 cmd byte, 1 32-bit address
             }
             else
             {
@@ -345,6 +336,33 @@ void loop()
               return;
             }
             break;
+          case TXCMD_TYPE_WAITMEMTRUE:
+            address = getUInt32(ptr+1);
+            mask32  = getUInt32(ptr+5);
+            retries = 0;
+            while(retries < MAX_RETRIES)
+            {
+              stat = g_interface->readMemory(address, data32);
+              if (stat == RXCMD_STATUS_OK)
+              {                
+                if ((data32 & mask32) == mask32)
+                {
+                  ptr+=9;   // 1 cmd byte, 2 32-bit data
+                  break;    // break out of while loop       
+                }
+              }
+              else
+              {
+                sendReply(stat);
+                return;
+              }
+              retries++;
+            }
+            if (retries == MAX_RETRIES)
+            {
+              sendReply(RXCMD_STATUS_TIMEOUT);
+            }            
+            break;          
           case TXCMD_TYPE_WRITEMEM:
             address = getUInt32(ptr+1);
             data32 = getUInt32(ptr+5);

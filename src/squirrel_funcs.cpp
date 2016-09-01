@@ -57,6 +57,30 @@ void compile_error_handler(HSQUIRRELVM v, const SQChar* desc, const SQChar* sour
     printf("Error in %s:%d:%d %s\n", source, line, column, desc);
 }
 
+void createStringVariable(HSQUIRRELVM v, const char *varname, const char *value)
+{
+    sq_pushroottable(v);
+    sq_pushstring(v,varname,-1);
+    sq_pushstring(v,value,-1);
+    sq_createslot(v,-3);
+}
+
+void createIntegerVariable(HSQUIRRELVM v,const char *varname, uint32_t value)
+{
+    sq_pushroottable(v);
+    sq_pushstring(v,varname,-1);
+    sq_pushinteger(v,value);
+    sq_createslot(v,-3);
+}
+
+void createBooleanVariable(HSQUIRRELVM v, const char *varname, bool value)
+{
+    sq_pushroottable(v);
+    sq_pushstring(v,varname,-1);
+    sq_pushbool(v, value ? SQTrue : SQFalse);
+    sq_createslot(v,-3);
+}
+
 // *****************************************
 // ** CUSTOM SQUIRREL FUNCTIONS
 // *****************************************

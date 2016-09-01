@@ -49,6 +49,18 @@ void compile_error_handler(HSQUIRRELVM v, const SQChar* desc, const SQChar* sour
 // ** CUSTOM SQUIRREL FUNCTIONS
 // *****************************************
 
+void createStringVariable(HSQUIRRELVM v, const char *varname, const char *value);
+
+void createIntegerVariable(HSQUIRRELVM v, const char *varname, uint32_t value);
+
+void createBooleanVariable(HSQUIRRELVM v, const char *varname, bool value);
+
+
+// *****************************************
+// ** CUSTOM SQUIRREL FUNCTIONS
+// ** Called from Squirrel
+// *****************************************
+
 /** quit the program */
 SQInteger quit(HSQUIRRELVM v);
 

@@ -40,6 +40,10 @@ function initSystem()
         dofile("..\\targets\\nxp\\mkv10z.nut");
         dofile("..\\targets\\nxp\\lpc13.nut");
         print("targets loaded!\n");
+        
+        //connect();
+        //kinetis_mdm_halt();
+               
     }
     catch(error)
     {

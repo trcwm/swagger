@@ -65,7 +65,7 @@ const DCRSR_REG_CONTROL = 0x1B;
 // else reset is released
 function setReset(state)
 {  
-    logmsg(LOG_DEBUG, "Reset " + state);
+    logmsg(LOG_DEBUG, "Reset " + state + "\n");
     clearCmdQueue();
     queueUInt8(CMD_TYPE_RESET);
     queueUInt8(state);
@@ -77,22 +77,25 @@ function setReset(state)
 // or 0xFFFFFFFF if it failed
 function connect()
 {
+    local retries = 0;
     logmsg(LOG_DEBUG, "Connecting...\n");
-    clearCmdQueue();
-    queueUInt8(CMD_TYPE_CONNECT);
-    executeCmdQueue();
-    local result = popUInt8();
-    local idcode = popUInt32();
-    if (result == CMD_STATUS_OK)
+    while(retries < 10)
     {
-        logmsg(LOG_DEBUG, "Found IDCODE: " + format("%08X", idcode));
+        clearCmdQueue();
+        queueUInt8(CMD_TYPE_CONNECT);
+        executeCmdQueue();
+        local result = popUInt8();
+        local idcode = popUInt32();
+        if (result == CMD_STATUS_OK)
+        {
+            logmsg(LOG_DEBUG, "Found IDCODE: " + format("%08X", idcode));
+            return idcode;
+        }
+        retries++;
     }
-    else
-    {
-        logmsg(LOG_DEBUG, "Connect failed!");
-        return 0xFFFFFFFF;
-    }   
-    return idcode;
+    
+    logmsg(LOG_DEBUG, "Connect failed!");
+    return -1
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +160,13 @@ function queueReadMemory(address)
     queueUInt32(address);
 }
 
+// queue poll memory
+function queuePollMemory(address, mask)
+{
+    queueUInt8(CMD_TYPE_WAITMEMTRUE);
+    queueUInt32(address);
+    queueUInt32(mask);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Immediate functions
@@ -226,6 +236,55 @@ function writeAP(address, value)
     return status;
 }
 
+// poll AP, returns CMD_STATUS_OK if
+// bits specified by mask are all
+// ones, or CMD_STATUS_TIMEOUT if 
+// a time-out occurred.
+function pollAP(address, mask)
+{
+    //logmsg(LOG_DEBUG, "pollAP\n");
+    local retries = 0;
+    while(retries < MAX_RETRIES)
+    {
+        clearCmdQueue();
+        queueReadAP(address);
+        executeCmdQueue();
+        local status = popUInt8();
+        if (status != CMD_STATUS_OK)
+            return status;
+            
+        local v = popUInt32();
+        if ((v & mask) == mask)
+            return CMD_STATUS_OK;
+        retries++;
+    }
+    return CMD_STATUS_TIMEOUT;
+}
+
+// poll AP, returns CMD_STATUS_OK if
+// bits specified by mask are all
+// ones, or CMD_STATUS_TIMEOUT if 
+// a time-out occurred.
+function pollAP_not(address, mask)
+{
+    //logmsg(LOG_DEBUG, "pollAP\n");
+    local retries = 0;
+    while(retries < MAX_RETRIES)
+    {
+        clearCmdQueue();
+        queueReadAP(address);
+        executeCmdQueue();
+        local status = popUInt8();
+        if (status != CMD_STATUS_OK)
+            return status;
+            
+        local v = popUInt32();
+        if ((v & mask) != mask)
+            return CMD_STATUS_OK;
+        retries++;
+    }
+    return CMD_STATUS_TIMEOUT;
+}
 
 // read from memory
 function readMemory(address)
@@ -245,6 +304,37 @@ function readMemory(address)
     return 0;
 }
 
+// read a number of words from memory
+// returns an array containing 
+// the memory contents
+function readMemoryWords(address, words)
+{
+    clearCmdQueue(); 
+    if (words > 6)
+    {
+        logmsg(LOG_ERROR, "Error: readMemoryWords failed: too many words requested\n");
+        return -1;
+    }
+    local contents = array(0,0);
+    for(local i=0; i<words; i++)
+    {
+        queueReadMemory(address);
+        address = address + 4;
+    }
+    executeCmdQueue();
+    local status = popUInt8();
+    if (status == CMD_STATUS_OK)
+    {
+        for(local i=0; i<words; i++)
+        {
+            contents.append(popUInt32());
+        }
+        return contents;
+    }
+    logmsg(LOG_ERROR, "Error: readMemoryWords failed: " + format("%02X", status) + "\n");
+    return status;
+}
+
 // write to memory
 function writeMemory(address, value)
 {
@@ -254,7 +344,7 @@ function writeMemory(address, value)
     local status = popUInt8();
     if (status != CMD_STATUS_OK)
     {
-        logmsg(LOG_DEBUG, "writeMemory failed: " + status);
+        logmsg(LOG_ERROR, "writeMemory failed: " + status);
     }
     return status;
 }
@@ -291,6 +381,67 @@ function showRegisters()
     }
 }
 
+// compare the flash with the binary file
+function verifyFlash()
+{
+    local myfile;
+    try
+    {
+        myfile = file(binFile,"rb");
+    }
+    catch(error)
+    {
+        logmsg(LOG_ERROR, "Cannot open file " + binFile + "\n");
+        return -1;
+    }
+    
+    local myblob = myfile.readblob(myfile.len());    
+    logmsg(LOG_INFO, format("Binary data is %d bytes\n", myblob.len()));
+    
+    // check that the binary file is indeed a whole number of words
+    if ((myblob.len() % 4) != 0)
+    {
+        logmsg(LOG_WARNING, format("Data is not a whole number of 32-bit words!\n"));
+    }
+    
+    local wordsLeft = myblob.len() / 4;
+    local address = 0;
+    while(wordsLeft > 0)
+    {
+        local wordCount = wordsLeft;    // number of words to read in one go.
+        if (wordCount > 6)
+        {
+            wordCount = 6;
+        }
+        
+        // get the memory contents in an array
+        local targetContents = readMemoryWords(address, wordCount);
+        if (typeof targetContents != "array")
+        {
+            logmsg(LOG_ERROR, "ERROR: Expected array\n");
+            return -1;
+        }
+        
+        // compare the memory contents with the file
+        for(local i=0; i<wordCount; i++)
+        {
+            local word = myblob.readn('i'); // read word from file
+            if (word != targetContents[i])
+            {
+                logmsg(LOG_ERROR, "\nVerify failed at address " + format("0x%08X",address+(i*4)) + "\n");
+                logmsg(LOG_ERROR, "  flash: " + format("0x%08X",targetContents[i]) + "\n  file : " + format("0x%08X",word) + "\n");
+                return -1;
+            }
+        }
+        address += wordCount*4;
+        wordsLeft -= wordCount;
+    }
+    logmsg(LOG_INFO, "\nVerify complete!\n");
+    
+    myfile.close();    
+    return 0;
+}
+
 // clear sticky SWD errors
 function clearStickyErrors()
 {
@@ -298,13 +449,20 @@ function clearStickyErrors()
     queueUInt8(CMD_TYPE_WRITEDP);
     queueUInt8(DP_ABORT);
     queueUInt32(1+2+4+8+16);
-    executeCmdQueue();
-    local result = popUInt8();
-    if (result != CMD_STATUS_OK)
+    if (executeCmdQueue() == 0)
     {
-        logmsg(LOG_DEBUG, "clearStickyErrors failed: " + status);
+        local result = popUInt8();
+        if (result != CMD_STATUS_OK)
+        {
+            logmsg(LOG_ERROR, "ERROR: clearStickyErrors failed: " + result);
+            return status;
+        }
+        else
+        {
+            return CMD_STATUS_OK;
+        }
     }
-    return status;
+    return CMD_STATUS_PROTOERR;
 }
 
 
