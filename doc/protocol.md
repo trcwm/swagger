@@ -50,7 +50,7 @@ All host packets have the following layout (before COBS encoding, excluding the 
 | 0x05   | WRITE DEBUG PORT  | < portNum:u8 > < value:u32 > | _none_ |
 | 0x06   | READ MEMORY  | < addr:u32 >  | < value:u32 > |
 | 0x07   | WRITE MEMORY  | < addr:u32 >  < value:u32 >| _none_ |
-| 0x08   | WAIT MEMORY TRUE | < addr:u32 >  < value:u32 > < mask:u32 >| < result:u8 > |
+| 0x08   | WAIT MEMORY TRUE | < addr:u32 >  < mask:u32 >| < result:u8 > |
 | 0xFF   | GET INTERFACE INFO | _none_ | < protoVer:u8 > < rxBufSize:u16 > |
 
 ###Execution of commands
@@ -90,10 +90,8 @@ This command reads a 32-bit word from a memory address specified by < addr >. A 
 This command writes a 32-bit word to a memory address specified by < addr >. The 32-bit data is given by < value >.
 
 ### CMD 0x08: WAIT MEMORY TRUE
-This command waits until a specific 32-bit data pattern is present at a memory address specified by < addr >. The data pattern is given by < value >. Before comparing, the value is bit-masked (AND-ed) with the 32-bit word given by < mask >.
-
-### CMD 0x09: WAIT MEMORY FALSE
-This command waits until a specific 32-bit data pattern is NOT present at a memory address specified by < addr >. The data pattern is given by < value >. Before comparing, the value is bit-masked (AND-ed) with the 32-bit word given by < mask >.
+This command waits until a specific 32-bit data pattern is present at a memory address specified by < addr >. Returns OK if (memdata & mask) == mask,
+or TIME-OUT if not found within 100(?) retries.
 
 ### CMD 0xFF: GET INTERFACE INFO
 This command queries the programming hardware for its supported version number and the receive buffer size (in bytes). Issuing this command is the recommended way of identifying that the hardware is listening on the selected COM port.
