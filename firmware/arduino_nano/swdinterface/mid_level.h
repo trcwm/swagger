@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include "low_level.h"
 
-#define SWDDELAY_us 20
+#define SWDDELAY_us 1
 #define LEDPIN 13
 #define SWDCLK_PIN 2
 #define SWDDAT_PIN 3

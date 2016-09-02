@@ -154,21 +154,23 @@ int main(int argc, char *argv[])
 
     if (!parser.isSet(binFile))
     {
-        fprintf(stderr, "Error: please specify the file to write.\n");
+        fprintf(stderr, "Error: please specify the file to flash.\n\n");
         parser.showHelp(1);
     }
 
     if (!parser.isSet(comPort))
     {
-        fprintf(stderr, "Error: please specify the COM port to use.\n");
+        fprintf(stderr, "Error: please specify the COM port to use.\n\n");
         parser.showHelp(1);
     }
 
+    /*
     if (!parser.isSet(procType))
     {
-        fprintf(stderr, "Error: please specify the processor type.\n");
+        fprintf(stderr, "Error: please specify the processor type.\n\n");
         parser.showHelp(1);
     }
+    */
 
     // try to open the COM port interface
     // and produce an error if we're not able
@@ -233,20 +235,22 @@ int main(int argc, char *argv[])
     register_global_func(v, clearCmdQueue, _SC("clearCmdQueue"));
     register_global_func(v, dumpResultQueue, _SC("dumpResultQueue"));
     register_global_func(v, printLastPacketError, _SC("printLastPacketError"));
+    register_global_func(v, sleep, _SC("sleep"));
 
     // pass on command line parameters to squirrel environment
     createStringVariable(v,"procType",qPrintable(parser.value(procType)));
     createStringVariable(v,"binFile",qPrintable(parser.value(binFile)));
+    createBooleanVariable(v, "verbose", parser.isSet(verboseMode));
 
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);
-
     if (!doScript(v, "..\\targets\\init.nut"))
     {
-        printf("Cannot execute targets.nut script!\n");
+        printf("Cannot execute init.nut script!\n");
+        return 1;
     }
 
-    Interactive(v);
+    //Interactive(v);
 
     sq_close(v);
 

@@ -46,12 +46,11 @@ class TargetKV10Z extends TargetBase
     }
      
 
-    
     function rresume()
     {
         // check for halt
         local retval = readAP(MDM_AP_STAT);
-        if (retval.data & MDM_STAT_COREHALTED)
+        if (retval & MDM_STAT_COREHALTED)
         {
             writeAP(MDM_AP_CTRL, 0);
             writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_MASKINTS)    
@@ -91,7 +90,7 @@ class TargetKV10Z extends TargetBase
         if (state == 1)
         {
             retval = writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ);            
-            if (retval.status != STAT_OK)
+            if (retval != CMD_STATUS_OK)
             {
                 logmsg(LOG_ERROR, "Reset request failed!\n");
                 return -1;
@@ -106,7 +105,7 @@ class TargetKV10Z extends TargetBase
         {
             // release reset
             retval = writeAP(MDM_AP_CTRL, 0);
-            if (retval.status != STAT_OK)
+            if (retval != CMD_STATUS_OK)
             {
                 logmsg(LOG_ERROR, "Reset de-assert failed!\n");
                 return -1;
@@ -119,268 +118,39 @@ class TargetKV10Z extends TargetBase
         }
         return -1;
     }
-        
-    function pollMemory(address, mask)
+    
+    function flash_erase()
     {
-        local retries = 0;
-        while(retries < MAX_RETRIES)
-        {
-            local retval = readMemory(address);
-            if ((retval.data & mask) == mask)
-            {
-                return 0;   // OK
-            }
-            retries++;
-        }
-        return -1;
+        return kinetis_flasherase();
     }
-    
-    function pollAP(address, mask)
-    {   
-        local retries = 0;
-        while(retries < MAX_RETRIES)
-        {
-            local retval = readAP(address);
-            if ((retval.data & mask) == mask)
-            {
-                return 0;   // OK
-            }
-            retries++;
-        }
-        return -1;
-    }
-    
-    function pollAP_not(address, mask)
-    {   
-        local retries = 0;
-        while(retries < MAX_RETRIES)
-        {
-            local retval = readAP(address);
-            if ((retval.data & mask) != mask)
-            {
-                return 0;   // OK
-            }
-            retries++;
-        }
-        return -1;
-    }    
-    
-    function securedErase()
-    {
-        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Mass erase trigger failed (SWD)\n");
-            return -1;
-        }
-                
-        // read flash erase in-progress until it clears!
-        if (pollAP_not(MDM_AP_CTRL, MDM_CTRL_FLASHERASE) == 0)
-        {
-            print("Flash mass erase successful!\n");
-        }
-        else
-        {
-            logmsg(LOG_ERROR, "Error: flash mass erase time-out!\n");
-            return -1;
-        }   
-    }
-    
-    function flasherase()
-    {
-        logmsg(LOG_DEBUG, "Attempting to erase the flash!\n");
         
-        // reset the system
-        reset(1);
-        if (isReset() == 0)
-        {
-            logmsg(LOG_DEBUG, "System reset succeeded!\n");
-        }
-        else
-        {
-            logmsg(LOG_ERROR, "System reset failed!\n");
-            return -1;
-        }
-        
-        if (halt() != 0)
-        {
-            //return -1;
-        }
-        
-        // make sure the flash has a clock
-        if (writeMemory(SIM_SCGC6, SCGC6_FTF).status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Could not set the FTF clock gating bit (SWD)\n");
-            return -1;
-        }
-                
-        // check for flash ready bit
-        if (pollAP(MDM_AP_STAT, MDM_STAT_FLASHREADY) != 0)
-        {
-            logmsg(LOG_ERROR, "Flash is not ready!\n");
-            return -1;
-        }
-        else
-        {
-            logmsg(LOG_DEBUG, "Flash is ready!\n");
-        }
-        
-        // read the flash protection bits
-        //local retval = readMemory(FTF_PROTADDR);
-        
-        // check system security
-        local retval = readAP(MDM_AP_STAT);
-        if (retval.data & MDM_STAT_SYSSECURITY)
-        {
-            //logmsg(LOG_DEBUG, "Part is secured - using mass erase\n");
-            logmsg(LOG_ERROR, "Part is secured - cannot program (yet)\n");
-            return -1;
-        }
-        else
-        {
-            logmsg(LOG_DEBUG, "Part is unsecured - full access available\n");
-        }
-                    
-        //print(format("SCS_DHCSR = %08X\n", readMemory(SCS_DHCSR).data));
-        
-        // get the size of the flash
-        retval = readMemory(SIM_FCFG1);
-        if (retval.status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Checking reading SIM_FCFG1 (SWD not OK)\n");
-            return -1;
-        }
-        
-        // program size in KB
-        local psize_tbl = array(16, -1);    // program size array
-        psize_tbl[0] = 8;
-        psize_tbl[1] = 16;
-        psize_tbl[3] = 32;
-        psize_tbl[5] = 64;
-        psize_tbl[7] = 128;
-        psize_tbl[9] = 256;
-        psize_tbl[15] = 32;
-        
-        // sector size in bytes
-        local secsize_tbl = array(16,-1);
-        secsize_tbl[0] = 256;
-        secsize_tbl[1] = 512;
-        secsize_tbl[3] = 1024;
-        secsize_tbl[5] = 2048;
-        secsize_tbl[7] = 4096;
-        secsize_tbl[9] = 4096;
-        secsize_tbl[15] = 1024;
-        
-        local psize = psize_tbl[(retval.data >> 24) & 0x0F];
-        local secsize = secsize_tbl[(retval.data >> 24) & 0x0F];
-        
-        logmsg(LOG_DEBUG, format("FLash = %d KB  Sector = %d Bytes\n", psize, secsize));
-        
-        if ((psize != 32) || (secsize != 1024))
-        {
-            logmsg(LOG_ERROR, "Wrong flash memory size - only the MKV10Z32 is supported!\n"); 
-            return -1;
-        }
-        else
-        {
-            logmsg(LOG_DEBUG, "Flash memory size OK!\n"); 
-        }
-        
-        // check if flash enabled!
-        if ((retval.data & 1) == 1)
-        {
-            logmsg(LOG_ERROR, "Flash is disabled!\n"); 
-            return -1;
-        }
-        
-        // ************************************************************
-        //   ERASING FLASH
-        // ************************************************************
-        
-        if (writeAP(MDM_AP_CTRL, MDM_CTRL_SYSRESETREQ | MDM_CTRL_FLASHERASE).status != STAT_OK)
-        {
-            logmsg(LOG_ERROR, "Mass erase trigger failed (SWD)\n");
-            return -1;
-        }
-                
-        // read flash erase in-progress until it clears!
-        if (pollAP_not(MDM_AP_CTRL, MDM_CTRL_FLASHERASE) == 0)
-        {
-            print("Flash mass erase successful!\n");
-        }
-        else
-        {
-            logmsg(LOG_ERROR, "Error: flash mass erase time-out!\n");
-            return -1;
-        }
-        
-        // reset part
-        reset(1);
-        reset(0);
-        
-        return 0;   // ok
-    }
-    
-    
     function flash_program_longword(address, data)
     {
-        // assumptions: we're in debug mode
-        // and flash is ready and erased!
-        
-        // clear error flags
-        writeMemory(FTFA_FSTAT, 0xFFFE0000 | FSTAT_RDCOLERR | FSTAT_ACCERR | FSTAT_FPVIOL);
-        
-        // wait for the previous command to finish
-        // if there was any
-        pollMemory(FTFA_FSTAT, FSTAT_CCIF);
-        
-        writeMemory(FTFA_FCCOB_BASE, 0x06000000 | (address & 0x00FFFFFF));
-        writeMemory(FTFA_FCCOB_BASE+4, data);
-        
-        // trigger command! 
-        writeMemory(FTFA_FSTAT, 0xFFFE0000 | FSTAT_CCIF);    // trigger command
-        
-        if (pollMemory(FTFA_FSTAT, FSTAT_CCIF) == 0)
-        {
-            logmsg(LOG_DEBUG, format("%08X <- %08X ok\n", address, data));
-        }
-        
-        // report errors
-        local retval = readMemory(FTFA_FSTAT);
-        if (retval.data & FSTAT_MGSTAT0)
-        {
-            logmsg(LOG_ERROR, "Command executing error!\n");
-            // Note: do not return.
-        }
-        if (retval.data & FSTAT_RDCOLERR)
-        {
-            logmsg(LOG_ERROR, "Flash read/write collison!\n");
-            return -1;
-        }
-        if (retval.data & FSTAT_ACCERR)
-        {
-            logmsg(LOG_ERROR, "Flash access error!\n");
-            return -1;
-        }
-        if (retval.data & FSTAT_FPVIOL)
-        {
-            logmsg(LOG_ERROR, "Flash violation!\n");
-            return -1;            
-        }
-        
-        return 0;
+        return kinetis_flash_longword(address, data);
     }
     
     function flash_program()
     {
-        local myfile = file("cyclotron.bin","rb");   
-        local myblob = myfile.readblob(myfile.len());        
-        print(format("Binary data is %d bytes\n", myblob.len()));
+        logmsg(LOG_INFO, "Flashing " + binFile + "\n");
+        local myfile;
+        try
+        {
+            myfile = file(binFile,"rb");
+        }
+        catch(error)
+        {
+            logmsg(LOG_ERROR, "Cannot open file " + binFile + "\n");
+            return -1;
+        }
+        
+        local myblob = myfile.readblob(myfile.len());
+        logmsg(LOG_INFO, format("Binary data is %d bytes\n", myblob.len()));
                 
         local idx = 0;
         while(idx < myblob.len())
         {
             local word = myblob.readn('i');
-            print(format("(%08X) <- %08X\n", idx, word));
+            logmsg(LOG_INFO, format("(%08X) <- %08X\r", idx, word));
             
             // program the flash but skip
             // the all-set word, as the erased flash
@@ -394,42 +164,15 @@ class TargetKV10Z extends TargetBase
                 }
             }
             idx += 4;
-        }
-        
+        }        
         myfile.close();
-    }
-    
-
-    function ftest()
-    {
-        local myfile = file("stubby.bin","rb");   
-        local myblob = myfile.readblob(myfile.len());        
-        print(format("Binary data is %d bytes\n", myblob.len()));
-                
-        local idx = 0;
-        local addr = 0x20000000
-        while(idx < myblob.len())
-        {
-            local word = myblob.readn('i');            
-            writeMemory(addr, word);
-            print(format("(%08X) <- %08X\n", addr, word));
-            idx += 4;
-            addr+= 4;
-        }
-        myfile.close();
-        writeCoreRegister(DCRSR_REG_DBGRET, 0x20000000);    // set PC to RAM
-        print(format("PC = %08X\n", readCoreRegister(DCRSR_REG_DBGRET).data))
-        writeAP(MDM_AP_CTRL, 0);    // release halt
-        writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_DEBUGEN | C_MASKINTS)
         
-        local retval = readAP(MDM_AP_STAT);
-
-        if (retval.data & MDM_STAT_COREHALTED)
-        {
-            print("Core still halted.. \n");
-        }
-        //  retval = writeAP(MDM_AP_CTRL, MDM_CTRL_DEBUGREQ);
-        //   writeMemory(SCS_DHCSR, DHCSR_DBGKEY | C_HALT | C_DEBUGEN | C_MASKINTS)        
+        logmsg(LOG_INFO, "\n");
+        
+        setReset(1);
+        setReset(0);
+        
+        return 0;
     }
 }
 

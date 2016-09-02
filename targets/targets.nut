@@ -97,4 +97,5 @@ function registerTarget(target_info)
     ::targets.append(target_info);
 }
 
+
 logmsg(LOG_DEBUG, "Loaded targets.nut\n");

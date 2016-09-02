@@ -6,6 +6,11 @@
 
 */
 
+#ifdef _WIN32
+#include <windows.h>    // for Sleep
+#else
+#include <time.h>       // for nanosleep
+#endif
 
 #include "squirrel_funcs.h"
 #include "hardwareinterface.h"
@@ -245,6 +250,39 @@ SQInteger clearCmdQueue(HSQUIRRELVM v)
     g_cmdQueue.clear();
     return 0;
 }
+
+SQInteger sleep(HSQUIRRELVM v)
+{
+    SQInteger nargs = sq_gettop(v);  // get number of arguments
+
+    if (nargs != 2)
+    {
+        printf("Error: sleep does not have enough parameters\n");
+        return 0;   // error, not enough
+    }
+
+    SQInteger word;
+    if (SQ_SUCCEEDED(sq_getinteger(v, -1, &word)))
+    {
+#ifdef _WIN32
+        Sleep(word);
+#else
+        struct timespec ts;
+        ts.tv_sec = word / 1000;
+        ts.tv_nsec = (word % 1000) * 1000000;
+        nanosleep(&ts, NULL);
+#endif
+    }
+    else
+    {
+        printf("Error: sleep parameter is not an integer\n");
+    }
+    return 0;   // no parameters returned
+}
+
+
+
+
 
 
 #if 0

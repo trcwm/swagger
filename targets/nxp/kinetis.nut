@@ -139,15 +139,13 @@ function kinetis_flash_longword(address,data)
         logmsg(LOG_ERROR, "ERROR: command queue execution failed\n");
         return -1;
     }
-    
-    logmsg(LOG_ERROR, "Funky");
-    
+        
     // get result of operations
     local result = popUInt8();
     if (result != CMD_STATUS_OK)
     {
         logmsg(LOG_ERROR, "ERROR: flash longword failed: " + result + "\n");
-        return result;
+        return -1;
     }
     // report error from Flash controller, if any
     local retval = popUInt32();
@@ -171,8 +169,7 @@ function kinetis_flash_longword(address,data)
         logmsg(LOG_ERROR, "Flash violation!\n");
         return -1;            
     }
-    logmsg(LOG_INFO, "Longword flashed!\n");
-    return CMD_STATUS_OK;
+    return 0;
 }
 
 
@@ -194,8 +191,6 @@ function kinetis_flasherase()
         logmsg(LOG_ERROR, "Could not set the FTF clock gating bit (SWD)\n");
         return -1;
     }
-    
-    
     
     // check for flash ready bit
     if (pollAP(MDM_AP_STAT, MDM_STAT_FLASHREADY) != CMD_STATUS_OK)
@@ -292,7 +287,8 @@ function kinetis_flasherase()
     // use hardware reset to reset the target
     setReset(1);
     setReset(0);
-
+    connect();
+    
     kinetis_mdm_halt();
     
     return 0;   // ok

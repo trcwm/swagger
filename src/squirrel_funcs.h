@@ -55,6 +55,8 @@ void createIntegerVariable(HSQUIRRELVM v, const char *varname, uint32_t value);
 
 void createBooleanVariable(HSQUIRRELVM v, const char *varname, bool value);
 
+/** Execute a squirrel script */
+bool doScript(HSQUIRRELVM v, const char *fileName);
 
 // *****************************************
 // ** CUSTOM SQUIRREL FUNCTIONS
@@ -91,7 +93,9 @@ SQInteger dumpResultQueue(HSQUIRRELVM v);
 /** Squirrel command: print the last logged error in packet system */
 SQInteger printLastPacketError(HSQUIRRELVM v);
 
-/** Execute a squirrel script */
-bool doScript(HSQUIRRELVM v, const char *fileName);
+/** Squirrel command: sleep for a number of milliseconds */
+SQInteger sleep(HSQUIRRELVM v);
+
+
 
 #endif
