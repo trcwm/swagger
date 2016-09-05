@@ -394,6 +394,7 @@ SQRESULT sqstd_loadfile(HSQUIRRELVM v,const SQChar *filename,SQBool printerror)
         sqstd_fclose(file);
         return SQ_ERROR;
     }
+    printf("%s", filename);
     return sq_throwerror(v,_SC("cannot open the file"));
 }
 

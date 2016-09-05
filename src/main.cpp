@@ -242,20 +242,17 @@ int main(int argc, char *argv[])
     createStringVariable(v,"binFile",qPrintable(parser.value(binFile)));
     createBooleanVariable(v, "verbose", parser.isSet(verboseMode));
 
+    QString scriptpath = QCoreApplication::applicationDirPath();
+    scriptpath.append("\\..\\targets\\");
+    createStringVariable(v,"scriptDir",qPrintable(scriptpath));
+
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);
 
-    QString exepath = QCoreApplication::applicationDirPath();
-    exepath.append("\\..\\targets\\init.nut");
-
-    // change the direction of the slashed if we're on windows
-#if _WIN32
-    exepath = exepath.replace('\\', '/');
-#endif
-
-    if (!doScript(v, exepath.toStdString().c_str()))
+    scriptpath.append("init.nut");
+    if (!doScript(v, scriptpath.toStdString().c_str()))
     {
-        printf("Cannot execute init.nut script!\n");
+        printf("Cannot execute %s!\n", qPrintable(scriptpath));
         return 1;
     }
 

@@ -29,7 +29,7 @@ function initSystem()
 {
     try
     {    
-        dofile("..\\targets\\logging.nut");
+        dofile(scriptDir + "logging.nut");
         
         if (verbose)
         {
@@ -38,12 +38,10 @@ function initSystem()
         
         logmsg(LOG_DEBUG, "Initializing...\n");
         
-        //dofile("..\\targets\\utils.nut");
-        dofile("..\\targets\\targetfuncs.nut");
-        dofile("..\\targets\\targets.nut");
-        dofile("..\\targets\\nxp\\kinetis.nut");
-        dofile("..\\targets\\nxp\\mkv10z.nut");
-        //dofile("..\\targets\\nxp\\lpc13.nut");
+        dofile(scriptDir + "targetfuncs.nut");
+        dofile(scriptDir + "targets.nut");
+        dofile(scriptDir + "nxp\\kinetis.nut");
+        dofile(scriptDir + "nxp\\mkv10z.nut");
         print("targets loaded!\n");
         
         sleep(200); // wait for programming interface to get online
