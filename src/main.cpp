@@ -244,7 +244,16 @@ int main(int argc, char *argv[])
 
     // load all the targets
     sq_setcompilererrorhandler(v, compile_error_handler);
-    if (!doScript(v, "..\\targets\\init.nut"))
+
+    QString exepath = QCoreApplication::applicationDirPath();
+    exepath.append("\\..\\targets\\init.nut");
+
+    // change the direction of the slashed if we're on windows
+#if _WIN32
+    exepath = exepath.replace('\\', '/');
+#endif
+
+    if (!doScript(v, exepath.toStdString().c_str()))
     {
         printf("Cannot execute init.nut script!\n");
         return 1;
