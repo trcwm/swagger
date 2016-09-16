@@ -150,6 +150,10 @@ int main(int argc, char *argv[])
     QCommandLineOption verboseMode(QStringList() << "v" << "verbose", "Set to verbose mode.");
     parser.addOption(verboseMode);
 
+    // Add -I for verbose mode
+    QCommandLineOption interactiveOption(QStringList() << "I" << "interactive", "Interactive mode.");
+    parser.addOption(interactiveOption);
+
     parser.process(coreApplication);
 
     if (!parser.isSet(binFile))
@@ -241,6 +245,7 @@ int main(int argc, char *argv[])
     createStringVariable(v,"procType",qPrintable(parser.value(procType)));
     createStringVariable(v,"binFile",qPrintable(parser.value(binFile)));
     createBooleanVariable(v, "verbose", parser.isSet(verboseMode));
+    createBooleanVariable(v, "interactive", parser.isSet(interactiveOption));
 
     QString scriptpath = QCoreApplication::applicationDirPath();
     scriptpath.append("\\..\\targets\\");
@@ -256,7 +261,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    //Interactive(v);
+    if (parser.isSet(interactiveOption))
+            Interactive(v);
 
     sq_close(v);
 
